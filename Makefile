@@ -24,6 +24,7 @@ install-user: build
 	chmod +x $(BINDIR)/rmux
 	ln -sf $(BINDIR)/rmux $(BINDIR)/cmux-native
 	cp data/org.rmux.Terminal.desktop $(APPDIR)/org.rmux.Terminal.desktop
+	rm -f $(APPDIR)/rmux.desktop
 	cp data/cmux-native.desktop $(APPDIR)/cmux-native.desktop
 	cp data/org.rmux.Terminal.metainfo.xml $(METADIR)/org.rmux.Terminal.metainfo.xml
 	cp data/icons/rmux.svg $(ICONDIR)/rmux.svg
