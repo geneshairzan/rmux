@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background squircle -->
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="#18181B" stroke="#27272A" stroke-width="2"/>
+  
+  <!-- Left sidebar simulation -->
+  <rect x="14" y="14" width="26" height="100" rx="14" fill="#202024"/>
+  <circle cx="27" cy="28" r="4" fill="#3B82F6"/>
+  <circle cx="27" cy="44" r="4" fill="#10B981"/>
+  <circle cx="27" cy="60" r="4" fill="#F59E0B"/>
+  
+  <!-- Main terminal area -->
+  <rect x="44" y="14" width="70" height="100" rx="14" fill="#09090B" stroke="#27272A" stroke-width="1.5"/>
+  
+  <!-- Split divider line -->
+  <line x1="44" y1="64" x2="114" y2="64" stroke="#27272A" stroke-width="1.5"/>
+  <line x1="79" y1="14" x2="79" y2="64" stroke="#27272A" stroke-width="1.5"/>
+  
+  <!-- Terminal Prompt glyphs -->
+  <!-- Top Left Pane: >_ -->
+  <path d="M52 30 L58 35 L52 40" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="62" y1="40" x2="70" y2="40" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round"/>
+  
+  <!-- Top Right Pane: AI pulse ring -->
+  <circle cx="97" cy="39" r="9" stroke="#EC4899" stroke-width="2" stroke-dasharray="3 2"/>
+  <circle cx="97" cy="39" r="4" fill="#EC4899"/>
+  
+  <!-- Bottom Pane: $ -->
+  <path d="M52 82 L58 87 L52 92" stroke="#4ADE80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="62" y1="92" x2="72" y2="92" stroke="#4ADE80" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

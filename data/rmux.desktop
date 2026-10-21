@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=rmux
+GenericName=Terminal Emulator for AI Developers
+Comment=Native Ubuntu Terminal Emulator for AI-Assisted Development
+Exec=rmux %U
+Icon=rmux
+Terminal=false
+Type=Application
+Categories=System;TerminalEmulator;Development;
+Keywords=terminal;shell;multiplexer;rmux;cmux;ai;agent;claude;codex;prompt;
+StartupNotify=true
+Actions=NewWorkspace;
+
+[Desktop Action NewWorkspace]
+Name=New Workspace
+Exec=rmux --new-workspace

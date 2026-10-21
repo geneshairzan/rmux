@@ -1,0 +1,21 @@
+# Generated build artifacts
+/target
+Cargo.lock.bak
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.bak
+
+# Logs and system dumps
+*.log
+core
+core.*
+vgcore.*
+
+# Temporary / OS files
+.DS_Store
+Thumbs.db

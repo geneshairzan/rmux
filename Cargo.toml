@@ -1,0 +1,22 @@
+[package]
+name = "rmux"
+version = "1.0.0"
+edition = "2021"
+authors = ["rmux Team <info@rmux.dev>"]
+description = "Native Ubuntu Terminal Emulator for AI-Assisted Development"
+default-run = "rmux"
+
+[[bin]]
+name = "rmux"
+path = "src/main.rs"
+
+[dependencies]
+gtk4 = { version = "0.11", features = ["v4_12"] }
+libadwaita = "0.9"
+vte-sys = { package = "vte4-sys", version = "0.10" }
+glib = "0.22"
+gio = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.10", features = ["v4"] }
+libc = "0.2"
