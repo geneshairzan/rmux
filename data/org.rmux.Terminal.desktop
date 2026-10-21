@@ -9,6 +9,7 @@ Type=Application
 Categories=System;TerminalEmulator;Development;
 Keywords=terminal;shell;multiplexer;rmux;cmux;ai;agent;claude;codex;prompt;
 StartupNotify=true
+StartupWMClass=rmux
 Actions=NewWorkspace;
 
 [Desktop Action NewWorkspace]

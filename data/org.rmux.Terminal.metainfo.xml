@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.rmux.Terminal</id>
+  <name>rmux</name>
+  <summary>Fast, simple, modern terminal for Linux</summary>
+  <description>
+    <p>
+      Native terminal emulator with workspaces, split panes and live
+      themes. Pure Rust and GTK4, no Electron.
+    </p>
+  </description>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="org.rmux">
+    <name>rmux Team</name>
+  </developer>
+  <launchable type="desktop-id">org.rmux.Terminal.desktop</launchable>
+  <icon type="stock">rmux</icon>
+  <categories>
+    <category>System</category>
+    <category>TerminalEmulator</category>
+  </categories>
+  <url type="homepage">https://github.com/geneshairzan/rmux</url>
+</component>
