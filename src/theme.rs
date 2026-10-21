@@ -99,6 +99,70 @@ pub fn find_theme(name: &str) -> ColorTheme {
         .unwrap_or_else(|| get_available_themes()[0].clone())
 }
 
+/// UI chrome colors derived from a terminal theme, VSCode-style:
+/// workbench (sidebar, header, cards, borders) stays coherent with
+/// the terminal background instead of using fixed hardcoded grays.
+#[derive(Debug, Clone)]
+pub struct UiChrome {
+    pub base: String,
+    pub foreground: String,
+    pub muted: String,
+    pub sidebar_bg: String,
+    pub header_bg: String,
+    pub card_bg: String,
+    pub hover_bg: String,
+    pub border: String,
+    pub border_focus: String,
+    pub input_bg: String,
+}
+
+fn parse_hex(hex: &str) -> (f32, f32, f32) {
+    let h = hex.trim_start_matches('#');
+    if h.len() < 6 {
+        return (0.0, 0.0, 0.0);
+    }
+    let r = u8::from_str_radix(&h[0..2], 16).unwrap_or(0) as f32 / 255.0;
+    let g = u8::from_str_radix(&h[2..4], 16).unwrap_or(0) as f32 / 255.0;
+    let b = u8::from_str_radix(&h[4..6], 16).unwrap_or(0) as f32 / 255.0;
+    (r, g, b)
+}
+
+fn to_hex(r: f32, g: f32, b: f32) -> String {
+    format!(
+        "#{:02x}{:02x}{:02x}",
+        (r.clamp(0.0, 1.0) * 255.0).round() as u8,
+        (g.clamp(0.0, 1.0) * 255.0).round() as u8,
+        (b.clamp(0.0, 1.0) * 255.0).round() as u8
+    )
+}
+
+fn mix(a: (f32, f32, f32), b: (f32, f32, f32), t: f32) -> (f32, f32, f32) {
+    (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t, a.2 + (b.2 - a.2) * t)
+}
+
+impl ColorTheme {
+    pub fn chrome(&self) -> UiChrome {
+        let bg = parse_hex(&self.background);
+        let fg = parse_hex(&self.foreground);
+        let white = (1.0, 1.0, 1.0);
+        let black = (0.0, 0.0, 0.0);
+        let rgb = |c: (f32, f32, f32)| to_hex(c.0, c.1, c.2);
+
+        UiChrome {
+            base: self.background.clone(),
+            foreground: self.foreground.clone(),
+            muted: rgb(mix(fg, bg, 0.45)),
+            sidebar_bg: rgb(mix(bg, black, 0.28)),
+            header_bg: rgb(mix(bg, white, 0.035)),
+            card_bg: rgb(mix(bg, white, 0.045)),
+            hover_bg: rgb(mix(bg, white, 0.075)),
+            border: rgb(mix(bg, white, 0.11)),
+            border_focus: rgb(mix(bg, white, 0.20)),
+            input_bg: rgb(mix(bg, white, 0.07)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

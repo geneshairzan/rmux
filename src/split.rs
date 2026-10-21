@@ -12,7 +12,7 @@ pub struct TabView {
     pub container: gtk4::Box,
     pub panes: Rc<RefCell<HashMap<String, Rc<Pane>>>>,
     pub focused_pane_id: Rc<RefCell<Option<String>>>,
-    config: TerminalConfig,
+    config: RefCell<TerminalConfig>,
 }
 
 impl TabView {
@@ -28,20 +28,40 @@ impl TabView {
             container,
             panes,
             focused_pane_id,
-            config: config.clone(),
+            config: RefCell::new(config.clone()),
         });
 
         tab_view.add_initial_pane(working_dir);
         tab_view
     }
 
+    pub fn set_theme(&self, theme_name: &str, theme_obj: &crate::theme::ColorTheme) {
+        self.config.borrow_mut().theme = theme_name.to_string();
+        for pane in self.panes.borrow().values() {
+            pane.term.borrow_mut().set_theme_name(theme_name);
+            pane.term.borrow().apply_theme(theme_obj);
+        }
+    }
+
+    pub fn set_font(&self, family: &str, size: u32) {
+        {
+            let mut cfg = self.config.borrow_mut();
+            cfg.font_family = family.to_string();
+            cfg.font_size = size;
+        }
+        for pane in self.panes.borrow().values() {
+            pane.term.borrow_mut().set_font_config(family, size);
+        }
+    }
+
     fn add_initial_pane(self: &Rc<Self>, working_dir: String) {
         let weak_self = Rc::downgrade(self);
         let weak_self_close = Rc::downgrade(self);
         let weak_self_focus = Rc::downgrade(self);
+        let cfg = self.config.borrow().clone();
 
         let pane = Rc::new(Pane::new(
-            &self.config,
+            &cfg,
             working_dir,
             None,
             move |target_id, orientation| {
@@ -79,9 +99,10 @@ impl TabView {
         let weak_self = Rc::downgrade(self);
         let weak_self_close = Rc::downgrade(self);
         let weak_self_focus = Rc::downgrade(self);
+        let cfg = self.config.borrow().clone();
 
         let new_pane = Rc::new(Pane::new(
-            &self.config,
+            &cfg,
             working_dir,
             None,
             move |t_id, orient| {
@@ -116,7 +137,6 @@ impl TabView {
             let paned = gtk4::Paned::new(gtk_orient);
             paned.set_hexpand(true);
             paned.set_vexpand(true);
-            paned.set_wide_handle(true);
 
             // Re-parent target
             if let Some(parent) = target.container.parent() {

@@ -1,4 +1,4 @@
-//! Vertical workspaces sidebar for rmux with Antigravity-style bottom settings.
+//! Vertical workspaces sidebar for rmux (workspace list plus Settings footer).
 
 use gtk4::prelude::*;
 use std::cell::{Cell, RefCell};
@@ -12,46 +12,21 @@ pub struct VerticalSidebar {
     pub list_box: gtk4::ListBox,
     row_map: Rc<RefCell<HashMap<String, gtk4::ListBoxRow>>>,
     suppress_signals: Rc<Cell<bool>>,
+    on_new: Rc<dyn Fn()>,
 }
 
 impl VerticalSidebar {
     pub fn new(
         on_tab_selected: impl Fn(String) + 'static + Clone,
-        on_new_tab: impl Fn() + 'static,
+        on_new_tab: impl Fn() + 'static + Clone,
         on_settings: impl Fn() + 'static,
     ) -> Self {
         let container = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
         container.add_css_class("workspace-sidebar");
         container.set_size_request(230, -1);
 
-        // Header
-        let header = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
-        header.add_css_class("sidebar-header");
-        header.set_margin_start(14);
-        header.set_margin_end(12);
-        header.set_margin_top(12);
-        header.set_margin_bottom(10);
-
-        let brand = gtk4::Label::new(Some("rmux"));
-        brand.add_css_class("sidebar-brand");
-        brand.set_halign(gtk4::Align::Start);
-        brand.set_hexpand(true);
-        header.append(&brand);
-
-        // New Workspace (+) Button
-        let btn_add = gtk4::Button::from_icon_name("list-add-symbolic");
-        btn_add.add_css_class("flat");
-        btn_add.add_css_class("circular");
-        btn_add.add_css_class("sidebar-icon-btn");
-        btn_add.set_tooltip_text(Some("New Workspace (Ctrl+Shift+T)"));
-        btn_add.connect_clicked(move |_| {
-            on_new_tab();
-        });
-        header.append(&btn_add);
-
-        container.append(&header);
-
-        // Scrolled List of Workspaces
+        // Scrolled List of Workspaces (header and footer removed: creation
+        // happens via background right-click or the Ctrl+Shift+N shortcut)
         let scroll = gtk4::ScrolledWindow::new();
         scroll.set_policy(gtk4::PolicyType::Never, gtk4::PolicyType::Automatic);
         scroll.set_hexpand(true);
@@ -87,17 +62,9 @@ impl VerticalSidebar {
         scroll.set_child(Some(&list_box));
         container.append(&scroll);
 
-        // Bottom Footer with Settings button (Antigravity UI style)
-        let footer = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+        // Bottom-left Settings footer (icon plus label, vertically centered).
+        let footer = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
         footer.add_css_class("sidebar-footer");
-        footer.set_margin_start(8);
-        footer.set_margin_end(8);
-        footer.set_margin_top(4);
-        footer.set_margin_bottom(8);
-
-        let sep = gtk4::Separator::new(gtk4::Orientation::Horizontal);
-        sep.add_css_class("sidebar-sep");
-        footer.append(&sep);
 
         let btn_settings = gtk4::Button::new();
         btn_settings.add_css_class("flat");
@@ -105,19 +72,19 @@ impl VerticalSidebar {
         btn_settings.set_tooltip_text(Some("Settings & Preferences"));
 
         let s_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
-        s_box.set_margin_start(8);
-        s_box.set_margin_end(8);
-        s_box.set_margin_top(6);
-        s_box.set_margin_bottom(6);
+        s_box.add_css_class("sidebar-settings-row");
+        s_box.set_valign(gtk4::Align::Center);
 
         let icon_settings = gtk4::Image::from_icon_name("emblem-system-symbolic");
         icon_settings.add_css_class("sidebar-settings-icon");
+        icon_settings.set_valign(gtk4::Align::Center);
         s_box.append(&icon_settings);
 
         let lbl_settings = gtk4::Label::new(Some("Settings"));
         lbl_settings.add_css_class("sidebar-settings-label");
         lbl_settings.set_halign(gtk4::Align::Start);
         lbl_settings.set_hexpand(true);
+        lbl_settings.set_valign(gtk4::Align::Center);
         s_box.append(&lbl_settings);
 
         btn_settings.set_child(Some(&s_box));
@@ -125,14 +92,53 @@ impl VerticalSidebar {
             on_settings();
         });
         footer.append(&btn_settings);
-
         container.append(&footer);
+
+        // Background right-click on empty sidebar area -> New Workspace.
+        // Attached to the container so clicks below the last row still work.
+        {
+            let on_new_bg = on_new_tab.clone();
+            let container_ref = container.clone();
+            let gesture_bg = gtk4::GestureClick::new();
+            gesture_bg.set_button(3);
+            gesture_bg.connect_pressed(move |_, _, x, y| {
+                let popover = gtk4::Popover::new();
+                let menu_box = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+                menu_box.set_margin_start(6);
+                menu_box.set_margin_end(6);
+                menu_box.set_margin_top(6);
+                menu_box.set_margin_bottom(6);
+
+                let btn_new = gtk4::Button::new();
+                btn_new.add_css_class("flat");
+                btn_new.add_css_class("workspace-context-item");
+                let new_lbl = gtk4::Label::new(Some("New Workspace"));
+                new_lbl.set_halign(gtk4::Align::Start);
+                new_lbl.set_hexpand(true);
+                btn_new.set_child(Some(&new_lbl));
+                let cb = on_new_bg.clone();
+                let p = popover.clone();
+                btn_new.connect_clicked(move |_| {
+                    p.popdown();
+                    cb();
+                });
+                menu_box.append(&btn_new);
+
+                popover.set_child(Some(&menu_box));
+                popover.set_parent(&container_ref);
+                let rect = gtk4::gdk::Rectangle::new(x as i32, y as i32, 1, 1);
+                popover.set_pointing_to(Some(&rect));
+                popover.popup();
+            });
+            container.add_controller(gesture_bg);
+        }
 
         Self {
             container,
             list_box,
             row_map,
             suppress_signals,
+            on_new: Rc::new(on_new_tab),
         }
     }
 
@@ -217,12 +223,13 @@ impl VerticalSidebar {
             });
             row.add_controller(gesture_click);
 
-            // Right-click context menu gesture
+            // Right-click context menu gesture (New / Rename / Close)
             let gesture_right = gtk4::GestureClick::new();
             gesture_right.set_button(3);
             let tab_id_ctx = tab.id.clone();
             let on_ren_ctx = on_rename.clone();
             let on_cls_ctx = on_close.clone();
+            let on_new_ctx = self.on_new.clone();
             let row_ref = row.clone();
             gesture_right.connect_pressed(move |_, _, x, y| {
                 let popover = gtk4::Popover::new();
@@ -232,8 +239,28 @@ impl VerticalSidebar {
                 menu_box.set_margin_top(6);
                 menu_box.set_margin_bottom(6);
 
-                let btn_ren = gtk4::Button::with_label("Rename Workspace...");
+                let btn_new = gtk4::Button::new();
+                btn_new.add_css_class("flat");
+                btn_new.add_css_class("workspace-context-item");
+                let new_lbl = gtk4::Label::new(Some("New Workspace"));
+                new_lbl.set_halign(gtk4::Align::Start);
+                new_lbl.set_hexpand(true);
+                btn_new.set_child(Some(&new_lbl));
+                let n_cb = on_new_ctx.clone();
+                let p0 = popover.clone();
+                btn_new.connect_clicked(move |_| {
+                    p0.popdown();
+                    n_cb();
+                });
+                menu_box.append(&btn_new);
+
+                let btn_ren = gtk4::Button::new();
                 btn_ren.add_css_class("flat");
+                btn_ren.add_css_class("workspace-context-item");
+                let ren_lbl = gtk4::Label::new(Some("Rename Workspace..."));
+                ren_lbl.set_halign(gtk4::Align::Start);
+                ren_lbl.set_hexpand(true);
+                btn_ren.set_child(Some(&ren_lbl));
                 let r_id = tab_id_ctx.clone();
                 let r_cb = on_ren_ctx.clone();
                 let p1 = popover.clone();
@@ -243,8 +270,13 @@ impl VerticalSidebar {
                 });
                 menu_box.append(&btn_ren);
 
-                let btn_cls = gtk4::Button::with_label("Close Workspace");
+                let btn_cls = gtk4::Button::new();
                 btn_cls.add_css_class("flat");
+                btn_cls.add_css_class("workspace-context-item");
+                let cls_lbl = gtk4::Label::new(Some("Close Workspace"));
+                cls_lbl.set_halign(gtk4::Align::Start);
+                cls_lbl.set_hexpand(true);
+                btn_cls.set_child(Some(&cls_lbl));
                 let c_id = tab_id_ctx.clone();
                 let c_cb = on_cls_ctx.clone();
                 let p2 = popover.clone();

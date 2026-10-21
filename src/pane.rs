@@ -33,13 +33,9 @@ impl Pane {
         container.set_hexpand(true);
         container.set_vexpand(true);
 
-        // Header
-        let header = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
+        // Header (full-bleed: no margins, interior spacing comes from CSS padding)
+        let header = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
         header.add_css_class("pane-header");
-        header.set_margin_start(8);
-        header.set_margin_end(6);
-        header.set_margin_top(3);
-        header.set_margin_bottom(3);
 
         // Status dot
         let status_dot = gtk4::Image::from_icon_name("media-record-symbolic");
@@ -71,8 +67,12 @@ impl Pane {
 
         container.append(&header);
 
-        // VTE Terminal
+        // VTE Terminal (inset so the prompt never hugs the pane edges)
         let term_widget = TerminalWidget::new(config, working_dir, command);
+        term_widget.widget().set_margin_start(12);
+        term_widget.widget().set_margin_end(8);
+        term_widget.widget().set_margin_top(8);
+        term_widget.widget().set_margin_bottom(8);
         container.append(term_widget.widget());
 
         // Terminal focus controller
@@ -86,6 +86,62 @@ impl Pane {
 
         let term = Rc::new(RefCell::new(term_widget));
         let is_focused = Rc::new(RefCell::new(false));
+
+        // Right-click context menu (Copy / Paste, VSCode-style)
+        {
+            let term_copy = term.clone();
+            let term_paste = term.clone();
+            let gesture_right = gtk4::GestureClick::new();
+            gesture_right.set_button(3);
+            gesture_right.connect_pressed(move |gesture, _, x, y| {
+                let anchor: gtk4::Widget = gesture
+                    .widget()
+                    .unwrap_or_else(|| term_copy.borrow().widget().clone());
+                let popover = gtk4::Popover::new();
+                let menu_box = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+                menu_box.set_margin_start(6);
+                menu_box.set_margin_end(6);
+                menu_box.set_margin_top(6);
+                menu_box.set_margin_bottom(6);
+
+                let btn_copy = gtk4::Button::new();
+                btn_copy.add_css_class("flat");
+                btn_copy.add_css_class("workspace-context-item");
+                let copy_lbl = gtk4::Label::new(Some("Copy"));
+                copy_lbl.set_halign(gtk4::Align::Start);
+                copy_lbl.set_hexpand(true);
+                btn_copy.set_child(Some(&copy_lbl));
+                let t_copy = term_copy.clone();
+                let p_copy = popover.clone();
+                btn_copy.connect_clicked(move |_| {
+                    t_copy.borrow().copy();
+                    p_copy.popdown();
+                });
+                menu_box.append(&btn_copy);
+
+                let btn_paste = gtk4::Button::new();
+                btn_paste.add_css_class("flat");
+                btn_paste.add_css_class("workspace-context-item");
+                let paste_lbl = gtk4::Label::new(Some("Paste"));
+                paste_lbl.set_halign(gtk4::Align::Start);
+                paste_lbl.set_hexpand(true);
+                btn_paste.set_child(Some(&paste_lbl));
+                let t_paste = term_paste.clone();
+                let p_paste = popover.clone();
+                btn_paste.connect_clicked(move |_| {
+                    t_paste.borrow().paste();
+                    p_paste.popdown();
+                });
+                menu_box.append(&btn_paste);
+
+                popover.set_child(Some(&menu_box));
+                popover.set_parent(&anchor);
+                let rect = gtk4::gdk::Rectangle::new(x as i32, y as i32, 1, 1);
+                popover.set_pointing_to(Some(&rect));
+                popover.popup();
+            });
+            term.borrow().widget().add_controller(gesture_right);
+        }
 
         // Click gesture for focus
         let gesture = gtk4::GestureClick::new();

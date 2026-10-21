@@ -88,6 +88,17 @@ impl TerminalWidget {
         }
     }
 
+    pub fn set_theme_name(&mut self, theme_name: &str) {
+        self.config.theme = theme_name.to_string();
+    }
+
+    pub fn set_font_config(&mut self, family: &str, size: u32) {
+        self.config.font_family = family.to_string();
+        self.config.font_size = size;
+        self.current_font_size = size;
+        self.apply_font();
+    }
+
     pub fn apply_font(&self) {
         let font_str = format!("{} {}", self.config.font_family, self.current_font_size);
         let font_desc = gtk4::pango::FontDescription::from_string(&font_str);

@@ -8,6 +8,7 @@ mod settings;
 mod sidebar;
 mod split;
 mod theme;
+mod tray;
 mod vte;
 mod window;
 
@@ -39,17 +40,21 @@ fn main() {
     app.connect_activate(|app| {
         let config = AppConfig::load();
 
-        // Theme management
-        let style_manager = libadwaita::StyleManager::default();
-        if config.appearance.theme == "dark" {
-            style_manager.set_color_scheme(libadwaita::ColorScheme::PreferDark);
-        } else if config.appearance.theme == "light" {
-            style_manager.set_color_scheme(libadwaita::ColorScheme::PreferLight);
-        } else {
-            style_manager.set_color_scheme(libadwaita::ColorScheme::Default);
+        // Top-bar indicator owns Show / New Workspace / Settings / Quit.
+        // Tray callbacks cross into GTK over a std channel drained by a
+        // poller in MainWindow. If no StatusNotifier host exists, the app
+        // still runs without it.
+        let (tray_tx, tray_rx) = std::sync::mpsc::channel();
+        if let Err(e) = crate::tray::RmuxTray::spawn(tray_tx) {
+            eprintln!("rmux: top-bar indicator unavailable: {e}");
         }
 
-        let main_win = MainWindow::new(app, config);
+        // All built-in presets are dark palettes — keep the libadwaita
+        // chrome on dark so headerbar/sidebar never flash light.
+        let style_manager = libadwaita::StyleManager::default();
+        style_manager.set_color_scheme(libadwaita::ColorScheme::PreferDark);
+
+        let main_win = MainWindow::new(app, config, tray_rx);
         main_win.present();
     });
 

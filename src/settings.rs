@@ -12,7 +12,7 @@ pub fn show_settings_modal(
     config_state: Rc<RefCell<AppConfig>>,
     on_theme_applied: impl Fn(String) + 'static + Clone,
     on_font_applied: impl Fn(String, u32) + 'static + Clone,
-) {
+) -> gtk4::Window {
     let dialog = gtk4::Window::new();
     dialog.set_title(Some("Settings"));
     dialog.set_transient_for(Some(parent));
@@ -28,16 +28,6 @@ pub fn show_settings_modal(
     let left_col = gtk4::Box::new(gtk4::Orientation::Vertical, 6);
     left_col.add_css_class("antigravity-settings-sidebar");
     left_col.set_size_request(210, -1);
-    left_col.set_margin_start(16);
-    left_col.set_margin_end(16);
-    left_col.set_margin_top(20);
-    left_col.set_margin_bottom(20);
-
-    let nav_heading = gtk4::Label::new(Some("Settings"));
-    nav_heading.add_css_class("antigravity-nav-heading");
-    nav_heading.set_halign(gtk4::Align::Start);
-    nav_heading.set_margin_bottom(8);
-    left_col.append(&nav_heading);
 
     let stack = gtk4::Stack::new();
     stack.set_transition_type(gtk4::StackTransitionType::Crossfade);
@@ -54,7 +44,11 @@ pub fn show_settings_modal(
     let nav_buttons: Rc<RefCell<Vec<(String, gtk4::Button)>>> = Rc::new(RefCell::new(Vec::new()));
 
     for (page_id, label_text) in nav_items {
-        let btn = gtk4::Button::with_label(label_text);
+        let btn = gtk4::Button::new();
+        let nav_lbl = gtk4::Label::new(Some(label_text));
+        nav_lbl.set_halign(gtk4::Align::Start);
+        nav_lbl.set_hexpand(true);
+        btn.set_child(Some(&nav_lbl));
         btn.add_css_class("flat");
         btn.add_css_class("antigravity-nav-btn");
         btn.set_halign(gtk4::Align::Fill);
@@ -82,16 +76,6 @@ pub fn show_settings_modal(
         nav_buttons.borrow_mut().push((page_id.to_string(), btn));
     }
 
-    let left_spacer = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
-    left_spacer.set_vexpand(true);
-    left_col.append(&left_spacer);
-
-    // Footer info in left nav
-    let version_lbl = gtk4::Label::new(Some("rmux v1.0.0"));
-    version_lbl.add_css_class("antigravity-nav-footer");
-    version_lbl.set_halign(gtk4::Align::Start);
-    left_col.append(&version_lbl);
-
     main_box.append(&left_col);
 
     // Vertical Divider
@@ -105,32 +89,11 @@ pub fn show_settings_modal(
     let right_col = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
     right_col.set_hexpand(true);
     right_col.set_vexpand(true);
+    right_col.set_margin_top(12);
     right_col.add_css_class("antigravity-settings-content");
 
-    // Top Bar with Close button (✕)
-    let top_bar = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
-    top_bar.set_margin_start(24);
-    top_bar.set_margin_end(20);
-    top_bar.set_margin_top(16);
-    top_bar.set_margin_bottom(8);
-
-    let top_spacer = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
-    top_spacer.set_hexpand(true);
-    top_bar.append(&top_spacer);
-
-    let btn_close = gtk4::Button::from_icon_name("window-close-symbolic");
-    btn_close.add_css_class("flat");
-    btn_close.add_css_class("circular");
-    btn_close.add_css_class("antigravity-close-btn");
-    btn_close.set_tooltip_text(Some("Close Settings"));
-    let d_close = dialog.clone();
-    btn_close.connect_clicked(move |_| {
-        d_close.close();
-    });
-    top_bar.append(&btn_close);
-
-    right_col.append(&top_bar);
-
+    // Content starts directly — the native window decoration owns the
+    // single close button, so no in-content close row is rendered.
     // ----------------------------------------------------
     // PAGE 1: APPEARANCE & THEMES
     // ----------------------------------------------------
@@ -184,14 +147,14 @@ pub fn show_settings_modal(
             &theme.palette[5],
         ];
 
-        for col in sample_colors {
+        for (j, col) in sample_colors.iter().enumerate() {
             let dot = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
             dot.set_size_request(14, 14);
-            dot.add_css_class("antigravity-color-dot");
-            let css = format!("border-radius: 50%; background-color: {}; border: 1px solid rgba(255,255,255,0.1);", col);
+            let css = format!("border-radius: 7px; background-color: {}; border: 1px solid rgba(255,255,255,0.12);", col);
             let prov = gtk4::CssProvider::new();
-            prov.load_from_string(&format!(".dot{} {{ {} }}", i, css));
-            dot.add_css_class(&format!("dot{}", i));
+            let class_name = format!("theme-dot-{}-{}", i, j);
+            prov.load_from_string(&format!(".{} {{ {} }}", class_name, css));
+            dot.add_css_class(&class_name);
             if let Some(display) = gtk4::gdk::Display::default() {
                 gtk4::style_context_add_provider_for_display(&display, &prov, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
             }
@@ -651,6 +614,11 @@ pub fn show_settings_modal(
     app_name_lbl.set_halign(gtk4::Align::Start);
     ab_inner.append(&app_name_lbl);
 
+    let app_version_lbl = gtk4::Label::new(Some(concat!("Version ", env!("CARGO_PKG_VERSION"))));
+    app_version_lbl.add_css_class("antigravity-row-desc");
+    app_version_lbl.set_halign(gtk4::Align::Start);
+    ab_inner.append(&app_version_lbl);
+
     let app_desc_lbl = gtk4::Label::new(Some("A fast, stable, native Linux terminal emulator written in 100% pure Rust using GTK4, libadwaita, and VTE. Designed for developer workflows, multiple workspaces, and AI coding agents."));
     app_desc_lbl.add_css_class("antigravity-row-desc");
     app_desc_lbl.set_halign(gtk4::Align::Start);
@@ -665,5 +633,10 @@ pub fn show_settings_modal(
     main_box.append(&right_col);
 
     dialog.set_child(Some(&main_box));
+
+    // The caller owns a full-window black scrim behind this modal, so the
+    // parent is never faded to wallpaper transparency. Focus stays here:
+    // the dialog is modal and transient for the parent window.
     dialog.present();
+    dialog
 }

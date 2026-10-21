@@ -58,10 +58,10 @@ pub struct ShortcutsConfig {
 impl Default for ShortcutsConfig {
     fn default() -> Self {
         Self {
-            new_workspace: String::from("Ctrl+Shift+T"),
+            new_workspace: String::from("Ctrl+Shift+N"),
             close_all_tabs: String::from("Ctrl+Shift+W"),
             close_pane: String::from("Ctrl+W"),
-            split_right: String::from("Ctrl+Shift+R"),
+            split_right: String::from("Ctrl+Shift+T"),
             split_down: String::from("Ctrl+Shift+D"),
             toggle_sidebar: String::from("Ctrl+B"),
             zoom_in: String::from("Ctrl+Plus"),
@@ -101,6 +101,7 @@ pub fn matches_key(shortcut_str: &str, keyval: gtk4::gdk::Key, state_flags: gtk4
 
     match target_key.to_lowercase().as_str() {
         "t" => lower_key == gtk4::gdk::Key::t,
+        "n" => lower_key == gtk4::gdk::Key::n,
         "w" => lower_key == gtk4::gdk::Key::w,
         "r" => lower_key == gtk4::gdk::Key::r,
         "d" => lower_key == gtk4::gdk::Key::d,

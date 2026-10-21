@@ -2,7 +2,7 @@
 
 use gtk4::prelude::*;
 use libadwaita::prelude::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -11,6 +11,7 @@ use crate::model::Tab;
 use crate::sidebar::VerticalSidebar;
 use crate::split::TabView;
 use crate::theme::find_theme;
+use crate::tray::TrayAction;
 
 pub const CUSTOM_CSS: &str = r#"
 /* ========================================================
@@ -20,36 +21,35 @@ window {
     background-color: #131418;
 }
 
+/* Headerbar keeps the sidebar toggle and Settings; no title widget */
 headerbar {
     background-color: #131418;
     border-bottom: 1px solid #1c1e24;
     min-height: 38px;
-    padding: 0 8px;
+    padding: 0 12px;
 }
 
 /* Terminal Panes */
 .terminal-pane {
     background-color: #0d0e12;
-    border-radius: 6px;
-    border: 1px solid #1a1c22;
-    transition: border-color 150ms ease;
+    border: none;
+    border-radius: 0;
+    margin: 0;
 }
 
-.terminal-pane.focused-pane {
-    border: 1px solid #2e313d;
-}
-
-.terminal-pane.unfocused-pane {
-    border: 1px solid #16171d;
+paned separator {
+    background-color: #1a1c22;
+    min-width: 1px;
+    min-height: 1px;
+    padding: 0;
 }
 
 .pane-header {
     background-color: #111216;
     border-bottom: 1px solid #1a1c22;
-    border-top-left-radius: 5px;
-    border-top-right-radius: 5px;
-    min-height: 24px;
-    padding: 2px 10px;
+    border-radius: 0;
+    min-height: 30px;
+    padding: 4px 12px 4px 16px;
 }
 
 .terminal-pane.focused-pane .pane-header {
@@ -57,7 +57,7 @@ headerbar {
 }
 
 .pane-title {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     font-family: monospace;
     color: #8c909e;
@@ -68,11 +68,11 @@ headerbar {
 }
 
 .pane-action-btn {
-    min-width: 20px;
-    min-height: 20px;
-    padding: 2px;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 3px;
     color: #6b7080;
-    border-radius: 4px;
+    border-radius: 5px;
     opacity: 0.3;
     transition: opacity 120ms ease, color 120ms ease;
 }
@@ -108,44 +108,20 @@ headerbar {
     color: #4b5162;
 }
 
-/* Workspaces Sidebar (Antigravity Style) */
+/* Sidebar has no header or footer: workspace list only. */
 .workspace-sidebar {
     background-color: #111215;
     border-right: 1px solid #1c1e24;
 }
 
-.sidebar-header {
-    border-bottom: 1px solid #18191f;
-}
-
-.sidebar-brand {
-    font-weight: 700;
-    font-size: 13px;
-    color: #f0f1f5;
-    letter-spacing: 0.8px;
-}
-
-.sidebar-icon-btn {
-    min-width: 26px;
-    min-height: 26px;
-    padding: 3px;
-    color: #8c909e;
-    border-radius: 5px;
-}
-
-.sidebar-icon-btn:hover {
-    color: #ffffff;
-    background-color: #1e2028;
-}
-
 .vertical-tabs-list {
     background: transparent;
-    padding-top: 4px;
+    padding: 6px 0;
 }
 
 .tab-row {
-    border-radius: 6px;
-    margin: 2px 8px;
+    border-radius: 8px;
+    margin: 3px 10px;
     transition: background-color 100ms ease;
     border: 1px solid transparent;
 }
@@ -161,7 +137,7 @@ headerbar {
 
 .tab-title {
     font-weight: 600;
-    font-size: 12px;
+    font-size: 12.5px;
     color: #d1d5db;
 }
 
@@ -170,14 +146,14 @@ headerbar {
 }
 
 .tab-subtitle {
-    font-size: 10.5px;
+    font-size: 11px;
     color: #717585;
 }
 
 .tab-close-btn {
-    min-width: 18px;
-    min-height: 18px;
-    padding: 1px;
+    min-width: 20px;
+    min-height: 20px;
+    padding: 2px;
     opacity: 0.15;
     transition: opacity 120ms ease, color 120ms ease;
 }
@@ -192,24 +168,30 @@ headerbar {
     color: #f43f5e;
 }
 
-/* Sidebar Footer (Settings in Bottom Left) */
-.sidebar-footer {
-    border-top: 1px solid #18191f;
-    padding-top: 6px;
+/* Workspace right-click context menu */
+.workspace-context-item {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 6px;
 }
 
-.sidebar-sep {
-    background-color: #18191f;
-    margin-bottom: 4px;
+/* Sidebar footer: full-bleed top border, Settings row vertically centered */
+.sidebar-footer {
+    border-top: 1px solid #18191f;
+    padding: 6px 8px 8px 8px;
 }
 
 .sidebar-settings-btn {
-    border-radius: 6px;
-    padding: 4px 6px;
+    border-radius: 8px;
+    min-height: 32px;
 }
 
 .sidebar-settings-btn:hover {
     background-color: #1c1e26;
+}
+
+.sidebar-settings-row {
+    padding: 6px 8px;
 }
 
 .sidebar-settings-icon {
@@ -218,7 +200,7 @@ headerbar {
 }
 
 .sidebar-settings-label {
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 500;
     color: #8c909e;
 }
@@ -228,66 +210,28 @@ headerbar {
     color: #f0f1f5;
 }
 
-/* Header Active Workspace Title Pill */
-.active-tab-header-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: #f0f1f5;
-    padding: 4px 12px;
-    border-radius: 6px;
-    border: 1px solid #232530;
-    background-color: #181920;
-    transition: background-color 100ms ease;
-}
-
-.active-tab-header-title:hover {
-    background-color: #20222c;
-    border-color: #313444;
-}
-
-/* Status Bar */
-.status-bar {
-    background-color: #0e0f13;
-    border-top: 1px solid #17181f;
-    padding: 2px 14px;
-    min-height: 22px;
-}
-
-.status-bar-item {
-    font-size: 10.5px;
-    color: #6b7080;
-    font-family: monospace;
-}
-
 /* ========================================================
    Antigravity Settings Modal Styling
    ======================================================== */
 .antigravity-modal {
     background-color: #131418;
     border: 1px solid #232530;
-    border-radius: 10px;
+    border-radius: 12px;
 }
 
 .antigravity-settings-sidebar {
     background-color: #111215;
     border-right: 1px solid #1c1e24;
-}
-
-.antigravity-nav-heading {
-    font-size: 11px;
-    font-weight: 700;
-    color: #6e7282;
-    letter-spacing: 0.5px;
-    padding-left: 8px;
+    padding: 20px 16px;
 }
 
 .antigravity-nav-btn {
-    border-radius: 6px;
-    padding: 7px 12px;
-    font-size: 12.5px;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
     color: #8c909e;
     font-weight: 500;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
     transition: background-color 100ms ease;
 }
 
@@ -302,14 +246,10 @@ headerbar {
     font-weight: 600;
 }
 
-.antigravity-nav-footer {
-    font-size: 10.5px;
-    color: #555866;
-    padding-left: 8px;
-}
-
 .antigravity-divider {
     background-color: #1c1e24;
+    min-width: 1px;
+    opacity: 1;
 }
 
 .antigravity-settings-content {
@@ -317,10 +257,10 @@ headerbar {
 }
 
 .antigravity-close-btn {
-    min-width: 26px;
-    min-height: 26px;
+    min-width: 28px;
+    min-height: 28px;
     color: #8c909e;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 .antigravity-close-btn:hover {
@@ -329,23 +269,23 @@ headerbar {
 }
 
 .antigravity-content-title {
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 700;
     color: #f0f1f5;
     letter-spacing: -0.2px;
 }
 
 .antigravity-content-desc {
-    font-size: 12px;
+    font-size: 12.5px;
     color: #7c808f;
-    line-height: 1.4;
-    margin-bottom: 8px;
+    line-height: 1.5;
+    margin-bottom: 10px;
 }
 
 .antigravity-card {
     background-color: #181920;
     border: 1px solid #232530;
-    border-radius: 8px;
+    border-radius: 10px;
 }
 
 .antigravity-card-row {
@@ -358,6 +298,8 @@ headerbar {
 
 .antigravity-card-sep {
     background-color: #20222c;
+    min-height: 1px;
+    opacity: 1;
 }
 
 .antigravity-row-title {
@@ -367,7 +309,7 @@ headerbar {
 }
 
 .antigravity-row-desc {
-    font-size: 11px;
+    font-size: 11.5px;
     color: #7c808f;
 }
 
@@ -383,14 +325,14 @@ headerbar {
     color: #e5e7eb;
     background-color: #20222c;
     border: 1px solid #2c2f3c;
-    padding: 3px 9px;
-    border-radius: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
 }
 
 .antigravity-edit-btn {
     min-width: 64px;
     font-size: 11px;
-    border-radius: 5px;
+    border-radius: 6px;
     border: 1px solid #2c2f3c;
     background-color: #20222b;
     color: #d1d5db;
@@ -422,6 +364,7 @@ headerbar {
     border-radius: 6px;
     color: #e5e7eb;
     font-size: 12px;
+    padding: 4px 8px;
 }
 
 .antigravity-spin {
@@ -431,7 +374,84 @@ headerbar {
     color: #e5e7eb;
     font-size: 12px;
 }
+
+/* Full black scrim behind the settings modal: a solid layer at
+   reduced alpha, composited over the window — never the wallpaper */
+.settings-scrim {
+    background-color: rgba(0, 0, 0, 0.55);
+}
 "#;
+
+/// Theme-derived chrome overrides, VSCode-style.
+///
+/// The terminal VTE colors come from `ColorTheme` directly, but every
+/// other surface (window, sidebar, pane headers, cards, inputs,
+/// separators) is styled by `CUSTOM_CSS` above. Without this override
+/// those surfaces stay fixed while the terminal follows the selected
+/// theme, so new tabs look detached from the preset. This keeps the
+/// workbench coherent with the active theme.
+pub fn chrome_override_css(theme: &crate::theme::ColorTheme) -> String {
+    let c = theme.chrome();
+    format!(
+        r#"
+window {{ background-color: {base}; }}
+headerbar {{ background-color: {base}; border-bottom: 1px solid {border}; }}
+.terminal-pane {{ background-color: {base}; border: none; }}
+paned separator {{ background-color: {border}; min-width: 1px; min-height: 1px; padding: 0; }}
+.pane-header {{ background-color: {header_bg}; border-bottom: 1px solid {border}; }}
+.terminal-pane.focused-pane .pane-header {{ background-color: {card_bg}; }}
+.pane-title {{ color: {muted}; }}
+.terminal-pane.focused-pane .pane-title {{ color: {fg}; }}
+.workspace-sidebar {{ background-color: {sidebar}; border-right: none; }}
+.vertical-tabs-list {{ background: transparent; }}
+.tab-row:hover {{ background-color: {hover}; }}
+.tab-row:selected {{ background-color: {hover}; border: 1px solid {border_focus}; }}
+.tab-title {{ color: {fg}; }}
+.tab-subtitle {{ color: {muted}; }}
+.sidebar-footer {{ border-top: 1px solid {border}; }}
+.antigravity-modal {{ background-color: {base}; border: 1px solid {border_focus}; }}
+.antigravity-settings-sidebar {{ background-color: {sidebar}; border-right: 1px solid {border}; }}
+.antigravity-nav-btn.active-nav {{ background-color: {hover}; color: {fg}; }}
+.antigravity-divider {{ background-color: {border}; }}
+.antigravity-settings-content {{ background-color: {base}; }}
+.antigravity-content-title {{ color: {fg}; }}
+.antigravity-content-desc {{ color: {muted}; }}
+.antigravity-card {{ background-color: {card_bg}; border: 1px solid {border}; }}
+.antigravity-card-row:hover {{ background-color: {hover}; }}
+.antigravity-card-sep {{ background-color: {border}; }}
+.antigravity-row-title {{ color: {fg}; }}
+.antigravity-row-desc {{ color: {muted}; }}
+.antigravity-key-badge {{ color: {fg}; background-color: {input}; border: 1px solid {border_focus}; }}
+.antigravity-edit-btn {{ border: 1px solid {border_focus}; background-color: {input}; color: {fg}; }}
+.antigravity-entry {{ background-color: {input}; border: 1px solid {border_focus}; color: {fg}; }}
+.antigravity-spin {{ background-color: {input}; border: 1px solid {border_focus}; color: {fg}; }}
+"#,
+        base = c.base,
+        fg = c.foreground,
+        muted = c.muted,
+        sidebar = c.sidebar_bg,
+        header_bg = c.header_bg,
+        card_bg = c.card_bg,
+        hover = c.hover_bg,
+        border = c.border,
+        border_focus = c.border_focus,
+        input = c.input_bg,
+    )
+}
+
+/// Layer theme-derived chrome colors on top of `CUSTOM_CSS`.
+pub fn apply_chrome_theme(theme_name: &str) {
+    let theme = crate::theme::find_theme(theme_name);
+    let provider = gtk4::CssProvider::new();
+    provider.load_from_string(&chrome_override_css(&theme));
+    if let Some(display) = gtk4::gdk::Display::default() {
+        gtk4::style_context_add_provider_for_display(
+            &display,
+            &provider,
+            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+        );
+    }
+}
 
 struct State {
     tabs: Vec<Tab>,
@@ -445,33 +465,27 @@ pub struct MainWindow {
 }
 
 impl MainWindow {
-    pub fn new(app: &libadwaita::Application, config: AppConfig) -> Self {
+    pub fn new(
+        app: &libadwaita::Application,
+        config: AppConfig,
+        tray_rx: std::sync::mpsc::Receiver<TrayAction>,
+    ) -> Self {
         let window = libadwaita::ApplicationWindow::new(app);
-        window.set_title(Some("rmux"));
+        window.set_title(None);
         window.set_default_size(1280, 800);
+        apply_chrome_theme(&config.appearance.theme);
 
         let root_box = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
         let header_bar = libadwaita::HeaderBar::new();
+        // No centered title widget — the red-marked "rmux" label comes from
+        // the default HeaderBar title, which mirrors the window title.
+        header_bar.set_title_widget(Some(&gtk4::Box::new(gtk4::Orientation::Horizontal, 0)));
         root_box.append(&header_bar);
 
         // Sidebar toggle button
         let btn_sidebar = gtk4::Button::from_icon_name("sidebar-show-symbolic");
         btn_sidebar.set_tooltip_text(Some("Toggle Sidebar (Ctrl+B)"));
         header_bar.pack_start(&btn_sidebar);
-
-        // New Workspace (+) button
-        let btn_new_tab = gtk4::Button::from_icon_name("list-add-symbolic");
-        btn_new_tab.set_tooltip_text(Some("New Workspace (Ctrl+Shift+T)"));
-        header_bar.pack_start(&btn_new_tab);
-
-        // Center Title (Active workspace name pill, clickable to rename)
-        let header_title_btn = gtk4::Button::new();
-        header_title_btn.add_css_class("flat");
-        let header_title = gtk4::Label::new(Some("Workspace 1"));
-        header_title.add_css_class("active-tab-header-title");
-        header_title_btn.set_child(Some(&header_title));
-        header_title_btn.set_tooltip_text(Some("Click to rename workspace"));
-        header_bar.set_title_widget(Some(&header_title_btn));
 
         // Main Paned
         let main_paned = gtk4::Paned::new(gtk4::Orientation::Horizontal);
@@ -487,24 +501,28 @@ impl MainWindow {
 
         root_box.append(&main_paned);
 
-        // Bottom status bar
-        let status_bar = gtk4::Box::new(gtk4::Orientation::Horizontal, 12);
-        status_bar.add_css_class("status-bar");
+        // Overlay hosts a full-window black scrim behind modal dialogs.
+        let overlay = gtk4::Overlay::new();
+        overlay.set_child(Some(&root_box));
+        window.set_content(Some(&overlay));
 
-        let status_dir_lbl = gtk4::Label::new(Some("~"));
-        status_dir_lbl.add_css_class("status-bar-item");
-        status_bar.append(&status_dir_lbl);
+        // Shared quit flag: tray Quit sets this so the window really
+        // closes instead of hiding again.
+        let confirmed_quit = Rc::new(Cell::new(false));
 
-        let spacer = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
-        spacer.set_hexpand(true);
-        status_bar.append(&spacer);
-
-        let status_panes_lbl = gtk4::Label::new(Some("1 pane"));
-        status_panes_lbl.add_css_class("status-bar-item");
-        status_bar.append(&status_panes_lbl);
-
-        root_box.append(&status_bar);
-        window.set_content(Some(&root_box));
+        // Close (X) hides straight to the top-bar indicator. No prompt:
+        // terminals keep running, quit happens from the indicator menu.
+        {
+            let win_ref = window.clone();
+            let quit_flag = confirmed_quit.clone();
+            window.connect_close_request(move |_| {
+                if quit_flag.get() {
+                    return glib::Propagation::Proceed;
+                }
+                win_ref.set_visible(false);
+                glib::Propagation::Stop
+            });
+        }
 
         let initial_tab = Tab::default();
         let initial_id = initial_tab.id.clone();
@@ -520,20 +538,11 @@ impl MainWindow {
         let switch_tab = {
             let state = state.clone();
             let tab_stack = tab_stack.clone();
-            let header_title = header_title.clone();
-            let status_dir_lbl = status_dir_lbl.clone();
 
             Rc::new(move |tab_id: &str| {
-                let (title, config_term) = {
+                let config_term = {
                     let mut st = state.borrow_mut();
                     st.active_tab_id = tab_id.to_string();
-
-                    let title = st
-                        .tabs
-                        .iter()
-                        .find(|t| t.id == tab_id)
-                        .map(|t| t.title.clone())
-                        .unwrap_or_else(|| String::from("Workspace"));
 
                     let config_term = st.config.terminal.clone();
 
@@ -545,19 +554,11 @@ impl MainWindow {
                         tab_stack.add_named(&tv.container, Some(tab_id));
                         st.tab_views.insert(tab_id.to_string(), tv);
                     }
-                    (title, config_term)
+                    config_term
                 };
 
                 let _ = config_term;
-                header_title.set_text(&title);
                 tab_stack.set_visible_child_name(tab_id);
-
-                let home = std::env::var("HOME").unwrap_or_default();
-                let mut dir_str = std::env::current_dir().unwrap_or_default().to_string_lossy().to_string();
-                if !home.is_empty() && dir_str.starts_with(&home) {
-                    dir_str = dir_str.replacen(&home, "~", 1);
-                }
-                status_dir_lbl.set_text(&dir_str);
             })
         };
 
@@ -726,7 +727,6 @@ impl MainWindow {
             let state = state.clone();
             let window_clone = window.clone();
             let sidebar_cell = sidebar_cell.clone();
-            let header_title = header_title.clone();
             let close_tab_holder = close_tab_holder.clone();
             let rename_tab_holder = rename_tab_holder.clone();
 
@@ -778,7 +778,6 @@ impl MainWindow {
                 let state_save = state.clone();
                 let tid = target_tab_id.to_string();
                 let sb_cell = sidebar_cell.clone();
-                let ht_lbl = header_title.clone();
                 let ct_h = close_tab_holder.clone();
                 let rn_h = rename_tab_holder.clone();
                 let d_save = dialog.clone();
@@ -792,9 +791,6 @@ impl MainWindow {
                         let mut st = state_save.borrow_mut();
                         if let Some(tab) = st.tabs.iter_mut().find(|t| t.id == tid) {
                             tab.title = trimmed.to_string();
-                        }
-                        if st.active_tab_id == tid {
-                            ht_lbl.set_text(trimmed);
                         }
                         (st.tabs.clone(), st.active_tab_id.clone())
                     };
@@ -838,18 +834,6 @@ impl MainWindow {
         };
 
         *rename_tab_holder.borrow_mut() = Some(rename_tab.clone());
-
-        // Header title button clicked -> rename active workspace
-        {
-            let state = state.clone();
-            let rn_holder = rename_tab_holder.clone();
-            header_title_btn.connect_clicked(move |_| {
-                let active = state.borrow().active_tab_id.clone();
-                if let Some(cb) = rn_holder.borrow().as_ref() {
-                    cb(&active);
-                }
-            });
-        }
 
         let split_tab = {
             let state = state.clone();
@@ -897,10 +881,12 @@ impl MainWindow {
             })
         };
 
-        // Open Settings Modal
+        // Open Settings Modal over a full-window black scrim (a real layer
+        // behind the modal, never wallpaper transparency).
         let open_settings = {
             let win_ref = window.clone();
             let state_ref = state.clone();
+            let overlay_ref = overlay.clone();
 
             Rc::new(move || {
                 let cfg_cell = Rc::new(RefCell::new(state_ref.borrow().config.clone()));
@@ -908,37 +894,47 @@ impl MainWindow {
                 let state_theme = state_ref.clone();
                 let on_theme_cb = move |theme_name: String| {
                     let theme_obj = find_theme(&theme_name);
+                    apply_chrome_theme(&theme_name);
                     let mut st = state_theme.borrow_mut();
                     st.config.appearance.theme = theme_name.clone();
                     st.config.terminal.theme = theme_name.clone();
 
                     for tv in st.tab_views.values() {
-                        for pane in tv.panes.borrow().values() {
-                            pane.term.borrow().apply_theme(&theme_obj);
-                        }
+                        tv.set_theme(&theme_name, &theme_obj);
                     }
                 };
 
                 let state_font = state_ref.clone();
-                let on_font_cb = move |_font_fam: String, _sz: u32| {
-                    let st = state_font.borrow();
+                let on_font_cb = move |font_fam: String, sz: u32| {
+                    let mut st = state_font.borrow_mut();
+                    st.config.terminal.font_family = font_fam.clone();
+                    st.config.terminal.font_size = sz;
                     for tv in st.tab_views.values() {
-                        for pane in tv.panes.borrow().values() {
-                            pane.term.borrow().apply_font();
-                        }
+                        tv.set_font(&font_fam, sz);
                     }
                 };
 
-                crate::settings::show_settings_modal(
+                let scrim = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+                scrim.add_css_class("settings-scrim");
+                scrim.set_hexpand(true);
+                scrim.set_vexpand(true);
+                overlay_ref.add_overlay(&scrim);
+
+                let dialog = crate::settings::show_settings_modal(
                     &win_ref,
                     cfg_cell,
                     on_theme_cb,
                     on_font_cb,
                 );
+                let overlay_rm = overlay_ref.clone();
+                dialog.connect_close_request(move |_| {
+                    overlay_rm.remove_overlay(&scrim);
+                    glib::Propagation::Proceed
+                });
             })
         };
 
-        // Sidebar with Antigravity-styled bottom settings button
+        // Sidebar holds the workspace list plus a bottom-left Settings footer.
         let sidebar = {
             let switch_tab = switch_tab.clone();
             let add_tab = add_tab.clone();
@@ -954,16 +950,49 @@ impl MainWindow {
         *sidebar_cell.borrow_mut() = Some(sidebar.clone());
         main_paned.set_start_child(Some(&sidebar.container));
 
+        // Top-bar indicator actions drain here on the GTK loop. Quit
+        // bypasses the hide-to-tray close dialog via the shared
+        // confirmed-quit flag.
+        {
+            let tray_rx = Rc::new(RefCell::new(tray_rx));
+            let win_tray = window.clone();
+            let add_tray = add_tab.clone();
+            let settings_tray = open_settings.clone();
+            let quit_tray = confirmed_quit.clone();
+            glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
+                let rx = tray_rx.borrow();
+                while let Ok(action) = rx.try_recv() {
+                    match action {
+                        TrayAction::ShowWindow => {
+                            win_tray.set_visible(true);
+                            win_tray.present();
+                        }
+                        TrayAction::NewWorkspace => {
+                            win_tray.set_visible(true);
+                            win_tray.present();
+                            add_tray();
+                        }
+                        TrayAction::OpenSettings => {
+                            win_tray.set_visible(true);
+                            win_tray.present();
+                            settings_tray();
+                        }
+                        TrayAction::Quit => {
+                            quit_tray.set(true);
+                            win_tray.close();
+                        }
+                    }
+                }
+                glib::ControlFlow::Continue
+            });
+        }
+
         // Connect sidebar toggle
         let sb_toggle = sidebar.clone();
         btn_sidebar.connect_clicked(move |_| {
             let v = sb_toggle.container.is_visible();
             sb_toggle.container.set_visible(!v);
         });
-
-        // Connect new workspace button
-        let at = add_tab.clone();
-        btn_new_tab.connect_clicked(move |_| at());
 
         // Global Key shortcuts with Capture Phase (intercepted before terminal widget)
         let key_ctrl = gtk4::EventControllerKey::new();
@@ -986,7 +1015,7 @@ impl MainWindow {
                 return glib::Propagation::Stop;
             }
 
-            // Configurable action: New Workspace (default: Ctrl+Shift+T)
+            // Configurable action: New Workspace (default: Ctrl+Shift+N)
             if matches_key(&shortcuts.new_workspace, keyval, state_flags) {
                 at_key();
                 return glib::Propagation::Stop;
@@ -998,7 +1027,7 @@ impl MainWindow {
                 return glib::Propagation::Stop;
             }
 
-            // Configurable action: Split Right (default: Ctrl+Shift+R)
+            // Configurable action: Split Right (default: Ctrl+Shift+T)
             if matches_key(&shortcuts.split_right, keyval, state_flags) {
                 sp_h_key("vertical");
                 return glib::Propagation::Stop;
@@ -1056,15 +1085,47 @@ impl MainWindow {
 
             if ctrl && shift {
                 let key = keyval.to_lower();
+                if key == gtk4::gdk::Key::c {
+                    let st = state_key.borrow();
+                    if let Some(tv) = st.tab_views.get(&st.active_tab_id) {
+                        let target = tv
+                            .focused_pane_id
+                            .borrow()
+                            .clone()
+                            .or_else(|| tv.panes.borrow().keys().next().cloned());
+                        if let Some(t) = target {
+                            if let Some(pane) = tv.panes.borrow().get(&t) {
+                                pane.term.borrow().copy();
+                            }
+                        }
+                    }
+                    return glib::Propagation::Stop;
+                }
+                if key == gtk4::gdk::Key::v {
+                    let st = state_key.borrow();
+                    if let Some(tv) = st.tab_views.get(&st.active_tab_id) {
+                        let target = tv
+                            .focused_pane_id
+                            .borrow()
+                            .clone()
+                            .or_else(|| tv.panes.borrow().keys().next().cloned());
+                        if let Some(t) = target {
+                            if let Some(pane) = tv.panes.borrow().get(&t) {
+                                pane.term.borrow().paste();
+                            }
+                        }
+                    }
+                    return glib::Propagation::Stop;
+                }
                 if key == gtk4::gdk::Key::w {
                     close_all_tabs_key();
                     return glib::Propagation::Stop;
                 }
-                if key == gtk4::gdk::Key::t {
+                if key == gtk4::gdk::Key::n {
                     at_key();
                     return glib::Propagation::Stop;
                 }
-                if key == gtk4::gdk::Key::r || key == gtk4::gdk::Key::e {
+                if key == gtk4::gdk::Key::t {
                     sp_h_key("vertical");
                     return glib::Propagation::Stop;
                 }
