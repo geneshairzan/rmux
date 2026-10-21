@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="data/icons/rmux.svg" width="128" height="128" alt="rmux logo"/>
+
 # ⚡ rmux
 
 **Native Linux Terminal Emulator for AI-Assisted Developers & Power Users**  
@@ -13,6 +15,10 @@
 <br/>
 
 > **rmux** combines high-performance native terminal emulation with vertical workspace organization and a minimalist Google Antigravity-inspired aesthetic. Unlike webview- or Electron-based multiplexers, rmux compiles directly into a standalone native binary with sub-millisecond input response, zero telemetry, and minimal memory footprint.
+
+<br/>
+
+<img src="assets/preview.png" width="94%" alt="rmux UI Preview" style="border-radius: 8px; border: 1px solid #2e313d; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"/>
 
 </div>
 
