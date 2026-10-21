@@ -18,7 +18,9 @@
 
 <br/>
 
-<img src="assets/preview.png" width="94%" alt="rmux UI Preview" style="border-radius: 8px; border: 1px solid #2e313d; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"/>
+<p align="center">
+  <img src="./assets/preview.png" width="94%" alt="rmux UI Preview" style="border-radius: 8px; border: 1px solid #2e313d; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"/>
+</p>
 
 </div>
 
@@ -223,6 +225,8 @@ project_terminal2/
 ├── Makefile              # User installation and compilation automation
 ├── .gitignore            # Clean source-only Git filter
 ├── README.md             # Project documentation
+├── assets/
+│   └── preview.png       # Application interface screenshot
 ├── bin/
 │   ├── rmux              # Direct release launcher script
 │   └── cmux-native       # Legacy compatibility launcher
