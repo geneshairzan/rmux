@@ -1,0 +1,11 @@
+Package: rmux
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libgtk-4-1 (>= 4.10), libadwaita-1-0 (>= 1.2), libvte-2.91-gtk4-0
+Maintainer: rmux Team <info@rmux.dev>
+Description: Native Ubuntu terminal emulator for AI-assisted development
+ Pure Rust terminal emulator built on GTK4, libadwaita and VTE.
+ Features multiple workspaces, split panes, live themes and a top-bar
+ indicator with hide-to-tray.
