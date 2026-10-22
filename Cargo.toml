@@ -1,6 +1,6 @@
 [package]
 name = "rmux"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 authors = ["rmux Team <info@rmux.dev>"]
 description = "Native Ubuntu Terminal Emulator for AI-Assisted Development"
