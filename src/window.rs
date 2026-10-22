@@ -490,6 +490,9 @@ impl MainWindow {
         // Main Paned
         let main_paned = gtk4::Paned::new(gtk4::Orientation::Horizontal);
         main_paned.set_position(config.appearance.sidebar_width);
+        // Never squeeze the sidebar below its minimum width: without
+        // this the divider (or a narrow window) crops workspace labels.
+        main_paned.set_shrink_start_child(false);
         main_paned.set_hexpand(true);
         main_paned.set_vexpand(true);
 

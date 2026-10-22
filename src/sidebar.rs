@@ -7,6 +7,10 @@ use std::rc::Rc;
 
 use crate::model::Tab;
 
+/// Minimum sidebar width in pixels. The split container and the window
+/// both clamp to this so labels never crop at narrow sizes.
+pub const SIDEBAR_MIN_WIDTH: i32 = 230;
+
 pub struct VerticalSidebar {
     pub container: gtk4::Box,
     pub list_box: gtk4::ListBox,
@@ -23,7 +27,7 @@ impl VerticalSidebar {
     ) -> Self {
         let container = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
         container.add_css_class("workspace-sidebar");
-        container.set_size_request(230, -1);
+        container.set_size_request(SIDEBAR_MIN_WIDTH, -1);
 
         // Scrolled List of Workspaces (header and footer removed: creation
         // happens via background right-click or the Ctrl+Shift+N shortcut)

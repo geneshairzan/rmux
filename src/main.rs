@@ -9,6 +9,7 @@ mod sidebar;
 mod split;
 mod theme;
 mod tray;
+mod updater;
 mod vte;
 mod window;
 
@@ -38,6 +39,18 @@ fn main() {
     });
 
     app.connect_activate(|app| {
+        // GApplication is single-instance per user session: launching
+        // rmux again re-fires activate on this process instead of
+        // starting a new one. Restore the existing window (even if
+        // hidden to the top-bar indicator) instead of a second MainWindow.
+        // windows() rather than active_window(): a tray-hidden window has
+        // no focus but must still count as running.
+        if let Some(existing) = app.windows().first() {
+            existing.set_visible(true);
+            existing.present();
+            return;
+        }
+
         let config = AppConfig::load();
 
         // Top-bar indicator owns Show / New Workspace / Settings / Quit.
