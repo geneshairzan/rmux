@@ -11,6 +11,10 @@ use crate::model::Tab;
 /// both clamp to this so labels never crop at narrow sizes.
 pub const SIDEBAR_MIN_WIDTH: i32 = 230;
 
+/// Maximum sidebar width in pixels. The divider cannot drag past this,
+/// so the sidebar never swallows the terminal area.
+pub const SIDEBAR_MAX_WIDTH: i32 = 420;
+
 pub struct VerticalSidebar {
     pub container: gtk4::Box,
     pub list_box: gtk4::ListBox,

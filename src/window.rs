@@ -9,6 +9,7 @@ use std::rc::Rc;
 use crate::config::{matches_key, AppConfig};
 use crate::model::Tab;
 use crate::sidebar::VerticalSidebar;
+use crate::sidebar::SIDEBAR_MAX_WIDTH;
 use crate::split::TabView;
 use crate::theme::find_theme;
 use crate::tray::TrayAction;
@@ -492,7 +493,23 @@ impl MainWindow {
         main_paned.set_position(config.appearance.sidebar_width);
         // Never squeeze the sidebar below its minimum width: without
         // this the divider (or a narrow window) crops workspace labels.
+        // Clamp the other way too: the divider cannot drag the sidebar
+        // past its maximum, so it never swallows the terminal area.
         main_paned.set_shrink_start_child(false);
+        main_paned.set_shrink_end_child(false);
+        {
+            let guard = Rc::new(Cell::new(false));
+            main_paned.connect_position_notify(move |p| {
+                if guard.get() {
+                    return;
+                }
+                if p.position() > SIDEBAR_MAX_WIDTH {
+                    guard.set(true);
+                    p.set_position(SIDEBAR_MAX_WIDTH);
+                    guard.set(false);
+                }
+            });
+        }
         main_paned.set_hexpand(true);
         main_paned.set_vexpand(true);
 
