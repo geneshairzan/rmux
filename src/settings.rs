@@ -625,6 +625,140 @@ pub fn show_settings_modal(
     app_desc_lbl.set_wrap(true);
     ab_inner.append(&app_desc_lbl);
 
+    // On-demand updates: check against the latest GitHub release, then
+    // optionally download and install. Nothing runs on startup; every
+    // step is user-initiated.
+    let upd_status_lbl = gtk4::Label::new(None);
+    upd_status_lbl.add_css_class("antigravity-row-desc");
+    upd_status_lbl.set_halign(gtk4::Align::Start);
+    upd_status_lbl.set_wrap(true);
+    ab_inner.append(&upd_status_lbl);
+
+    let upd_row = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
+    upd_row.set_halign(gtk4::Align::Start);
+
+    let btn_check = gtk4::Button::with_label("Check for Updates");
+    btn_check.add_css_class("flat");
+    btn_check.add_css_class("antigravity-edit-btn");
+    upd_row.append(&btn_check);
+
+    let btn_install = gtk4::Button::with_label("Download & Install");
+    btn_install.add_css_class("suggested-action");
+    btn_install.set_visible(false);
+    upd_row.append(&btn_install);
+    ab_inner.append(&upd_row);
+
+    let pending_asset: Rc<RefCell<Option<(String, String)>>> = Rc::new(RefCell::new(None));
+
+    let status_check = upd_status_lbl.clone();
+    let install_check = btn_install.clone();
+    let pending_check = pending_asset.clone();
+    btn_check.connect_clicked(move |b| {
+        b.set_sensitive(false);
+        status_check.set_text("Checking for updates…");
+        install_check.set_visible(false);
+        pending_check.borrow_mut().take();
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(crate::updater::check_for_updates());
+        });
+        let status_poll = status_check.clone();
+        let btn_poll = b.clone();
+        let install_poll = install_check.clone();
+        let pending_poll = pending_check.clone();
+        glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+            match rx.try_recv() {
+                Ok(crate::updater::UpdateOutcome::UpToDate(latest)) => {
+                    status_poll.set_text(&format!(
+                        "You are up to date (version {}, latest {}).",
+                        env!("CARGO_PKG_VERSION"),
+                        latest
+                    ));
+                    btn_poll.set_sensitive(true);
+                    glib::ControlFlow::Break
+                }
+                Ok(crate::updater::UpdateOutcome::Available(info)) => {
+                    match &info.deb_asset_url {
+                        Some(asset_url) => {
+                            status_poll.set_text(&format!(
+                                "Version {} is available (you have {}). Press Download & Install, or get it from {}",
+                                info.version,
+                                env!("CARGO_PKG_VERSION"),
+                                info.page_url
+                            ));
+                            *pending_poll.borrow_mut() =
+                                Some((info.version.clone(), asset_url.clone()));
+                            install_poll.set_visible(true);
+                        }
+                        None => {
+                            status_poll.set_text(&format!(
+                                "Version {} is available (you have {}). No installer is attached to that release — see {}",
+                                info.version,
+                                env!("CARGO_PKG_VERSION"),
+                                info.page_url
+                            ));
+                        }
+                    }
+                    btn_poll.set_sensitive(true);
+                    glib::ControlFlow::Break
+                }
+                Ok(crate::updater::UpdateOutcome::Failed(reason)) => {
+                    status_poll.set_text(&format!(
+                        "Could not check for updates: {reason}. Check your connection and try again."
+                    ));
+                    btn_poll.set_sensitive(true);
+                    glib::ControlFlow::Break
+                }
+                Err(_) => glib::ControlFlow::Continue,
+            }
+        });
+    });
+
+    let status_install = upd_status_lbl.clone();
+    let check_install = btn_check.clone();
+    let pending_install = pending_asset.clone();
+    btn_install.connect_clicked(move |b| {
+        let selected = pending_install.borrow().clone();
+        let Some((version, asset_url)) = selected else {
+            status_install.set_text("No update selected. Press Check for Updates first.");
+            return;
+        };
+        b.set_sensitive(false);
+        check_install.set_sensitive(false);
+        status_install.set_text(&format!("Downloading version {version}…"));
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let result = crate::updater::download_deb(&asset_url, &version)
+                .and_then(|path| crate::updater::install_deb(&path).map(|_| path));
+            let _ = tx.send(result);
+        });
+        let status_poll = status_install.clone();
+        let btn_poll = b.clone();
+        let check_poll = check_install.clone();
+        glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+            match rx.try_recv() {
+                Ok(Ok(path)) => {
+                    status_poll.set_text(&format!(
+                        "Version installed from {}. Restart rmux to run it (close the window, then reopen from the top-bar indicator or the dock).",
+                        path.display()
+                    ));
+                    btn_poll.set_visible(false);
+                    check_poll.set_sensitive(true);
+                    glib::ControlFlow::Break
+                }
+                Ok(Err(reason)) => {
+                    status_poll.set_text(&format!("Update failed: {reason}."));
+                    btn_poll.set_sensitive(true);
+                    check_poll.set_sensitive(true);
+                    glib::ControlFlow::Break
+                }
+                Err(_) => glib::ControlFlow::Continue,
+            }
+        });
+    });
+
     ab_card.append(&ab_inner);
     page_about.append(&ab_card);
     stack.add_named(&page_about, Some("about"));
