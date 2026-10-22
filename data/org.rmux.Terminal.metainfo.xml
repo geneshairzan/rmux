@@ -6,7 +6,7 @@
   <description>
     <p>
       Native terminal emulator with workspaces, split panes and live
-      themes. Pure Rust and GTK4, no Electron.
+      themes. Pure Rust and GTK4.
     </p>
   </description>
   <metadata_license>MIT</metadata_license>

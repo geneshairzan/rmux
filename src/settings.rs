@@ -609,7 +609,7 @@ pub fn show_settings_modal(
     ab_inner.set_margin_top(16);
     ab_inner.set_margin_bottom(16);
 
-    let app_name_lbl = gtk4::Label::new(Some("rmux — Native Ubuntu Terminal Emulator"));
+    let app_name_lbl = gtk4::Label::new(Some("rmux — Fast, Simple, Modern Terminal for Linux"));
     app_name_lbl.add_css_class("antigravity-row-title");
     app_name_lbl.set_halign(gtk4::Align::Start);
     ab_inner.append(&app_name_lbl);
@@ -619,7 +619,7 @@ pub fn show_settings_modal(
     app_version_lbl.set_halign(gtk4::Align::Start);
     ab_inner.append(&app_version_lbl);
 
-    let app_desc_lbl = gtk4::Label::new(Some("A fast, stable, native Linux terminal emulator written in 100% pure Rust using GTK4, libadwaita, and VTE. Designed for developer workflows, multiple workspaces, and AI coding agents."));
+    let app_desc_lbl = gtk4::Label::new(Some("A fast, simple, modern terminal for Linux. Native workspaces, split panes, and live themes. Pure Rust, GTK4."));
     app_desc_lbl.add_css_class("antigravity-row-desc");
     app_desc_lbl.set_halign(gtk4::Align::Start);
     app_desc_lbl.set_wrap(true);

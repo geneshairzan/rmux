@@ -1,13 +1,13 @@
 [Desktop Entry]
 Name=cmux
-GenericName=Terminal Emulator for AI Developers
-Comment=Native Ubuntu Terminal Emulator for AI-Assisted Development
+GenericName=Terminal Emulator
+Comment=Fast, simple, modern terminal for Linux
 Exec=cmux-native %U
 Icon=cmux-native
 Terminal=false
 Type=Application
 Categories=System;TerminalEmulator;Development;
-Keywords=terminal;shell;multiplexer;cmux;ai;agent;claude;codex;prompt;
+Keywords=terminal;shell;multiplexer;cmux;workspace;split;theme;
 StartupNotify=true
 Actions=NewWorkspace;
 

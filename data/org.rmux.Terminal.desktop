@@ -1,13 +1,13 @@
 [Desktop Entry]
 Name=rmux
-GenericName=Terminal Emulator for AI Developers
-Comment=Native Ubuntu Terminal Emulator for AI-Assisted Development
+GenericName=Terminal Emulator
+Comment=Fast, simple, modern terminal for Linux
 Exec=rmux %U
 Icon=rmux
 Terminal=false
 Type=Application
 Categories=System;TerminalEmulator;Development;
-Keywords=terminal;shell;multiplexer;rmux;cmux;ai;agent;claude;codex;prompt;
+Keywords=terminal;shell;multiplexer;rmux;workspace;split;theme;
 StartupNotify=true
 StartupWMClass=rmux
 Actions=NewWorkspace;
