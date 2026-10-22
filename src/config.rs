@@ -27,7 +27,7 @@ impl Default for TerminalConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppearanceConfig {
-    pub theme: String, // "rmux Dark", "Catppuccin Mocha", "Tokyo Night", etc.
+    pub theme: String, // "rmux Dark", "Dark 2026", "Codex", etc.
     pub sidebar_visible: bool,
     pub sidebar_width: i32,
 }

@@ -24,14 +24,25 @@ pub fn get_available_themes() -> Vec<ColorTheme> {
             ],
         },
         ColorTheme {
-            name: "Catppuccin Mocha".to_string(),
-            foreground: "#cdd6f4".to_string(),
-            background: "#1e1e2e".to_string(),
+            name: "Dark 2026".to_string(),
+            foreground: "#BBBEBF".to_string(),
+            background: "#121314".to_string(),
             palette: vec![
-                "#45475a".into(), "#f38ba8".into(), "#a6e3a1".into(), "#f9e2af".into(),
-                "#89b4fa".into(), "#f5c2e7".into(), "#94e2d5".into(), "#bac2de".into(),
-                "#585b70".into(), "#f38ba8".into(), "#a6e3a1".into(), "#f9e2af".into(),
-                "#89b4fa".into(), "#f5c2e7".into(), "#94e2d5".into(), "#a6adc8".into(),
+                "#000000".into(), "#cd3131".into(), "#0DBC79".into(), "#e5e510".into(),
+                "#2472c8".into(), "#bc3fbc".into(), "#11a8cd".into(), "#e5e5e5".into(),
+                "#666666".into(), "#f14c4c".into(), "#23d18b".into(), "#f5f543".into(),
+                "#3b8eea".into(), "#d670d6".into(), "#29b8db".into(), "#e5e5e5".into(),
+            ],
+        },
+        ColorTheme {
+            name: "Codex".to_string(),
+            foreground: "#EDEDED".to_string(),
+            background: "#1C1C1C".to_string(),
+            palette: vec![
+                "#2D2D2D".into(), "#E57373".into(), "#A3BE8C".into(), "#E5C07B".into(),
+                "#6AA8D8".into(), "#B57EDC".into(), "#56B6C2".into(), "#EDEDED".into(),
+                "#5A5A5A".into(), "#F08A80".into(), "#B5D8A0".into(), "#E8C86A".into(),
+                "#8ABFE8".into(), "#C8A8D8".into(), "#8AD8D8".into(), "#FFFFFF".into(),
             ],
         },
         ColorTheme {
@@ -65,28 +76,6 @@ pub fn get_available_themes() -> Vec<ColorTheme> {
                 "#81a1c1".into(), "#b48ead".into(), "#88c0d0".into(), "#e5e9f0".into(),
                 "#4c566a".into(), "#bf616a".into(), "#a3be8c".into(), "#ebcb8b".into(),
                 "#81a1c1".into(), "#b48ead".into(), "#8fbcbb".into(), "#eceff4".into(),
-            ],
-        },
-        ColorTheme {
-            name: "Gruvbox Dark".to_string(),
-            foreground: "#ebdbb2".to_string(),
-            background: "#282828".to_string(),
-            palette: vec![
-                "#282828".into(), "#cc241d".into(), "#98971a".into(), "#d79921".into(),
-                "#458588".into(), "#b16286".into(), "#689d6a".into(), "#a89984".into(),
-                "#928374".into(), "#fb4934".into(), "#b8bb26".into(), "#fabd2f".into(),
-                "#83a598".into(), "#d3869b".into(), "#8ec07c".into(), "#ebdbb2".into(),
-            ],
-        },
-        ColorTheme {
-            name: "One Dark".to_string(),
-            foreground: "#abb2bf".to_string(),
-            background: "#21252b".to_string(),
-            palette: vec![
-                "#1e2127".into(), "#e06c75".into(), "#98c379".into(), "#d19a66".into(),
-                "#61afef".into(), "#c678dd".into(), "#56b6c2".into(), "#abb2bf".into(),
-                "#5c6370".into(), "#e06c75".into(), "#98c379".into(), "#d19a66".into(),
-                "#61afef".into(), "#c678dd".into(), "#56b6c2".into(), "#ffffff".into(),
             ],
         },
     ]
@@ -171,7 +160,7 @@ mod tests {
     fn test_themes_list() {
         let themes = get_available_themes();
         assert!(themes.len() >= 5);
-        let found = find_theme("Catppuccin Mocha");
-        assert_eq!(found.name, "Catppuccin Mocha");
+        let found = find_theme("Tokyo Night");
+        assert_eq!(found.name, "Tokyo Night");
     }
 }
