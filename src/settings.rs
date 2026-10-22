@@ -240,9 +240,8 @@ pub fn show_settings_modal(
     let sc_card = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
     sc_card.add_css_class("antigravity-card");
 
-    let actions: [(&str, &str, fn(&AppConfig) -> String, fn(&mut AppConfig, String)); 9] = [
+    let actions: [(&str, &str, fn(&AppConfig) -> String, fn(&mut AppConfig, String)); 8] = [
         ("New Workspace", "Create and switch to a fresh workspace", |c| c.shortcuts.new_workspace.clone(), |c, s| c.shortcuts.new_workspace = s),
-        ("Close All Open Tabs", "Close all open workspaces and reset", |c| c.shortcuts.close_all_tabs.clone(), |c, s| c.shortcuts.close_all_tabs = s),
         ("Close Focused Pane", "Close active terminal pane", |c| c.shortcuts.close_pane.clone(), |c, s| c.shortcuts.close_pane = s),
         ("Split Right", "Split current pane side-by-side", |c| c.shortcuts.split_right.clone(), |c, s| c.shortcuts.split_right = s),
         ("Split Down", "Split current pane top-and-bottom", |c| c.shortcuts.split_down.clone(), |c, s| c.shortcuts.split_down = s),

@@ -647,57 +647,6 @@ impl MainWindow {
 
         *close_tab_holder.borrow_mut() = Some(close_tab.clone());
 
-        // Close all open tabs function (Ctrl+Shift+W)
-        let close_all_tabs = {
-            let state = state.clone();
-            let tab_stack = tab_stack.clone();
-            let sidebar_cell = sidebar_cell.clone();
-            let switch_tab = switch_tab.clone();
-            let close_tab_holder = close_tab_holder.clone();
-            let rename_tab_holder = rename_tab_holder.clone();
-
-            Rc::new(move || {
-                let (new_id, tabs_snapshot) = {
-                    let mut st = state.borrow_mut();
-                    for tv in st.tab_views.values() {
-                        tab_stack.remove(&tv.container);
-                    }
-                    st.tab_views.clear();
-
-                    let fresh_tab = Tab {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        title: String::from("Workspace 1"),
-                        root_layout: crate::model::LayoutNode::default(),
-                    };
-                    let new_id = fresh_tab.id.clone();
-                    st.tabs = vec![fresh_tab];
-                    st.active_tab_id = new_id.clone();
-                    (new_id, st.tabs.clone())
-                };
-
-                if let Some(sb) = sidebar_cell.borrow().as_ref() {
-                    let ct_cb = close_tab_holder.clone();
-                    let rn_cb = rename_tab_holder.clone();
-                    sb.set_tabs(
-                        &tabs_snapshot,
-                        &new_id,
-                        move |id| {
-                            if let Some(cb) = ct_cb.borrow().as_ref() {
-                                cb(&id);
-                            }
-                        },
-                        move |id| {
-                            if let Some(cb) = rn_cb.borrow().as_ref() {
-                                cb(&id);
-                            }
-                        },
-                    );
-                }
-
-                switch_tab(&new_id);
-            })
-        };
-
         let add_tab = {
             let state = state.clone();
             let sidebar_cell = sidebar_cell.clone();
@@ -1019,7 +968,6 @@ impl MainWindow {
         key_ctrl.set_propagation_phase(gtk4::PropagationPhase::Capture);
 
         let at_key = add_tab.clone();
-        let close_all_tabs_key = close_all_tabs.clone();
         let close_pane_key = close_pane_action.clone();
         let sp_h_key = split_tab.clone();
         let sp_v_key = split_tab.clone();
@@ -1028,12 +976,6 @@ impl MainWindow {
 
         key_ctrl.connect_key_pressed(move |_, keyval, _, state_flags| {
             let shortcuts = state_key.borrow().config.shortcuts.clone();
-
-            // Configurable action: Close all open tabs (default: Ctrl+Shift+W)
-            if matches_key(&shortcuts.close_all_tabs, keyval, state_flags) {
-                close_all_tabs_key();
-                return glib::Propagation::Stop;
-            }
 
             // Configurable action: New Workspace (default: Ctrl+Shift+N)
             if matches_key(&shortcuts.new_workspace, keyval, state_flags) {
@@ -1135,10 +1077,6 @@ impl MainWindow {
                             }
                         }
                     }
-                    return glib::Propagation::Stop;
-                }
-                if key == gtk4::gdk::Key::w {
-                    close_all_tabs_key();
                     return glib::Propagation::Stop;
                 }
                 if key == gtk4::gdk::Key::n {

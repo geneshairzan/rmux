@@ -34,7 +34,6 @@ Native workspaces, split panes, and live themes. Pure Rust, GTK4.
 | `Ctrl+Shift+N` | New workspace |
 | `Ctrl+Shift+T` | Split vertical |
 | `Ctrl+Shift+D` | Split horizontal |
-| `Ctrl+Shift+W` | Close all workspaces |
 | `Ctrl+W` | Close focused pane |
 | `Ctrl+B` | Toggle sidebar |
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | Copy / paste |

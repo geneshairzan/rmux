@@ -45,7 +45,6 @@ impl Default for AppearanceConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShortcutsConfig {
     pub new_workspace: String,
-    pub close_all_tabs: String,
     pub close_pane: String,
     pub split_right: String,
     pub split_down: String,
@@ -59,7 +58,6 @@ impl Default for ShortcutsConfig {
     fn default() -> Self {
         Self {
             new_workspace: String::from("Ctrl+Shift+N"),
-            close_all_tabs: String::from("Ctrl+Shift+W"),
             close_pane: String::from("Ctrl+W"),
             split_right: String::from("Ctrl+Shift+T"),
             split_down: String::from("Ctrl+Shift+D"),
