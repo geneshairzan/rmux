@@ -973,6 +973,7 @@ impl MainWindow {
         let sp_v_key = split_tab.clone();
         let sb_toggle_key = sidebar.clone();
         let state_key = state.clone();
+        let focus_cycle_key = state.clone();
 
         key_ctrl.connect_key_pressed(move |_, keyval, _, state_flags| {
             let shortcuts = state_key.borrow().config.shortcuts.clone();
@@ -998,6 +999,22 @@ impl MainWindow {
             // Configurable action: Split Down (default: Ctrl+Shift+D)
             if matches_key(&shortcuts.split_down, keyval, state_flags) {
                 sp_v_key("horizontal");
+                return glib::Propagation::Stop;
+            }
+
+            // Configurable action: Cycle Pane Focus (default: Ctrl+Tab / Ctrl+Shift+Tab)
+            if matches_key(&shortcuts.focus_next_pane, keyval, state_flags) {
+                let st = focus_cycle_key.borrow();
+                if let Some(tv) = st.tab_views.get(&st.active_tab_id) {
+                    tv.focus_next_pane(1);
+                }
+                return glib::Propagation::Stop;
+            }
+            if matches_key(&shortcuts.focus_prev_pane, keyval, state_flags) {
+                let st = focus_cycle_key.borrow();
+                if let Some(tv) = st.tab_views.get(&st.active_tab_id) {
+                    tv.focus_next_pane(-1);
+                }
                 return glib::Propagation::Stop;
             }
 

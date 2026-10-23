@@ -12,6 +12,7 @@ pub struct TabView {
     pub container: gtk4::Box,
     pub panes: Rc<RefCell<HashMap<String, Rc<Pane>>>>,
     pub focused_pane_id: Rc<RefCell<Option<String>>>,
+    pane_order: Rc<RefCell<Vec<String>>>,
     config: RefCell<TerminalConfig>,
 }
 
@@ -23,11 +24,13 @@ impl TabView {
 
         let panes = Rc::new(RefCell::new(HashMap::new()));
         let focused_pane_id = Rc::new(RefCell::new(None));
+        let pane_order = Rc::new(RefCell::new(Vec::new()));
 
         let tab_view = Rc::new(Self {
             container,
             panes,
             focused_pane_id,
+            pane_order,
             config: RefCell::new(config.clone()),
         });
 
@@ -83,6 +86,7 @@ impl TabView {
 
         *self.focused_pane_id.borrow_mut() = Some(pane.id.clone());
         self.panes.borrow_mut().insert(pane.id.clone(), pane.clone());
+        self.pane_order.borrow_mut().push(pane.id.clone());
         self.container.append(&pane.container);
         pane.set_focused(true);
     }
@@ -124,6 +128,14 @@ impl TabView {
 
         let new_id = new_pane.id.clone();
         self.panes.borrow_mut().insert(new_id.clone(), new_pane.clone());
+        {
+            let mut order = self.pane_order.borrow_mut();
+            if let Some(pos) = order.iter().position(|id| id == target_id) {
+                order.insert(pos + 1, new_id.clone());
+            } else {
+                order.push(new_id.clone());
+            }
+        }
 
         // Find the target pane container and replace it with a Paned containing target and new
         let target_pane = self.panes.borrow().get(target_id).cloned();
@@ -137,14 +149,25 @@ impl TabView {
             let paned = gtk4::Paned::new(gtk_orient);
             paned.set_hexpand(true);
             paned.set_vexpand(true);
+            paned.set_shrink_start_child(false);
+            paned.set_shrink_end_child(false);
 
+            // Even split: each child gets half of the focused pane's
+            // current size, so 1 pane -> 50/50, then 50/25/25, and so on.
+            let half_now = if orientation == "vertical" {
+                target.container.width() / 2
+            } else {
+                target.container.height() / 2
+            };
             // Re-parent target
             if let Some(parent) = target.container.parent() {
                 if let Some(box_parent) = parent.downcast_ref::<gtk4::Box>() {
                     box_parent.remove(&target.container);
                     paned.set_start_child(Some(&target.container));
                     paned.set_end_child(Some(&new_pane.container));
-                    paned.set_position(400);
+                    if half_now > 0 {
+                        paned.set_position(half_now);
+                    }
                     box_parent.append(&paned);
                 } else if let Some(paned_parent) = parent.downcast_ref::<gtk4::Paned>() {
                     let is_start = paned_parent.start_child().as_ref() == Some(&target.container.clone().upcast());
@@ -157,8 +180,29 @@ impl TabView {
                     }
                     paned.set_start_child(Some(&target.container));
                     paned.set_end_child(Some(&new_pane.container));
-                    paned.set_position(400);
+                    if half_now > 0 {
+                        paned.set_position(half_now);
+                    }
                 }
+            }
+
+            // If the target had no allocation yet (unrealized), center
+            // once layout runs so the split still lands at 50/50.
+            if half_now <= 0 {
+                let paned_weak = paned.downgrade();
+                let orient_owned = orientation.to_string();
+                glib::idle_add_local_once(move || {
+                    if let Some(paned) = paned_weak.upgrade() {
+                        let half = if orient_owned == "vertical" {
+                            paned.width() / 2
+                        } else {
+                            paned.height() / 2
+                        };
+                        if half > 0 {
+                            paned.set_position(half);
+                        }
+                    }
+                });
             }
 
             self.focus_pane(&new_id);
@@ -202,15 +246,36 @@ impl TabView {
             }
         }
 
-        if let Some(first_id) = self.panes.borrow().keys().next().cloned() {
-            self.focus_pane(&first_id);
+        if let Some(first_id) = self.pane_order.borrow().first().cloned() {
+            if self.panes.borrow().contains_key(&first_id) {
+                self.focus_pane(&first_id);
+            } else if let Some(any_id) = self.panes.borrow().keys().next().cloned() {
+                self.focus_pane(&any_id);
+            }
         }
+        self.pane_order
+            .borrow_mut()
+            .retain(|id| id != target_id);
     }
 
     pub fn focus_pane(&self, pane_id: &str) {
         *self.focused_pane_id.borrow_mut() = Some(pane_id.to_string());
         for (id, p) in self.panes.borrow().iter() {
             p.set_focused(id == pane_id);
+        }
+    }
+
+    pub fn focus_next_pane(&self, direction: i32) {
+        let order = self.pane_order.borrow().clone();
+        if order.len() <= 1 {
+            return;
+        }
+        let current = self.focused_pane_id.borrow().clone().unwrap_or_default();
+        let idx = order.iter().position(|id| *id == current).unwrap_or(0);
+        let len = order.len() as i32;
+        let next_idx = (idx as i32 + direction).rem_euclid(len) as usize;
+        if let Some(next_id) = order.get(next_idx) {
+            self.focus_pane(next_id);
         }
     }
 }

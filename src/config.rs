@@ -48,10 +48,22 @@ pub struct ShortcutsConfig {
     pub close_pane: String,
     pub split_right: String,
     pub split_down: String,
+    #[serde(default = "default_focus_next")]
+    pub focus_next_pane: String,
+    #[serde(default = "default_focus_prev")]
+    pub focus_prev_pane: String,
     pub toggle_sidebar: String,
     pub zoom_in: String,
     pub zoom_out: String,
     pub zoom_reset: String,
+}
+
+fn default_focus_next() -> String {
+    String::from("Ctrl+Tab")
+}
+
+fn default_focus_prev() -> String {
+    String::from("Ctrl+Shift+Tab")
 }
 
 impl Default for ShortcutsConfig {
@@ -61,6 +73,8 @@ impl Default for ShortcutsConfig {
             close_pane: String::from("Ctrl+W"),
             split_right: String::from("Ctrl+Shift+T"),
             split_down: String::from("Ctrl+Shift+D"),
+            focus_next_pane: default_focus_next(),
+            focus_prev_pane: default_focus_prev(),
             toggle_sidebar: String::from("Ctrl+B"),
             zoom_in: String::from("Ctrl+Plus"),
             zoom_out: String::from("Ctrl+Minus"),
@@ -108,6 +122,11 @@ pub fn matches_key(shortcut_str: &str, keyval: gtk4::gdk::Key, state_flags: gtk4
         "plus" | "=" => lower_key == gtk4::gdk::Key::plus || lower_key == gtk4::gdk::Key::equal,
         "minus" | "-" => lower_key == gtk4::gdk::Key::minus,
         "0" => lower_key == gtk4::gdk::Key::_0,
+        "tab" => {
+            lower_key == gtk4::gdk::Key::Tab
+                || lower_key == gtk4::gdk::Key::KP_Tab
+                || lower_key == gtk4::gdk::Key::ISO_Left_Tab
+        }
         other => {
             if let Some(k) = gtk4::gdk::Key::from_name(other) {
                 return lower_key == k.to_lower();
@@ -185,5 +204,44 @@ mod tests {
         let json = serde_json::to_string(&config).unwrap();
         let recovered: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(recovered.terminal.font_size, 14);
+    }
+
+    #[test]
+    fn test_focus_shortcut_defaults() {
+        let config = AppConfig::default();
+        assert_eq!(config.shortcuts.focus_next_pane, "Ctrl+Tab");
+        assert_eq!(config.shortcuts.focus_prev_pane, "Ctrl+Shift+Tab");
+    }
+
+    #[test]
+    fn test_old_config_without_focus_shortcuts_still_loads() {
+        let json = r#"{
+            "terminal": {"font_family": "Monospace", "font_size": 11, "scrollback_lines": 10000, "default_shell": "/bin/bash", "theme": "rmux Dark"},
+            "appearance": {"theme": "rmux Dark", "sidebar_visible": true, "sidebar_width": 240},
+            "shortcuts": {"new_workspace": "Ctrl+Shift+N", "close_pane": "Ctrl+W", "split_right": "Ctrl+Shift+T", "split_down": "Ctrl+Shift+D", "toggle_sidebar": "Ctrl+B", "zoom_in": "Ctrl+Plus", "zoom_out": "Ctrl+Minus", "zoom_reset": "Ctrl+0"}
+        }"#;
+        let recovered: AppConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(recovered.shortcuts.focus_next_pane, "Ctrl+Tab");
+        assert_eq!(recovered.shortcuts.focus_prev_pane, "Ctrl+Shift+Tab");
+    }
+
+    #[test]
+    fn test_tab_key_matches() {
+        use gtk4::gdk::ModifierType;
+        assert!(matches_key(
+            "Ctrl+Tab",
+            gtk4::gdk::Key::Tab,
+            ModifierType::CONTROL_MASK
+        ));
+        assert!(!matches_key(
+            "Ctrl+Tab",
+            gtk4::gdk::Key::Tab,
+            ModifierType::empty()
+        ));
+        assert!(matches_key(
+            "Ctrl+Shift+Tab",
+            gtk4::gdk::Key::ISO_Left_Tab,
+            ModifierType::CONTROL_MASK | ModifierType::SHIFT_MASK
+        ));
     }
 }

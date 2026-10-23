@@ -240,11 +240,13 @@ pub fn show_settings_modal(
     let sc_card = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
     sc_card.add_css_class("antigravity-card");
 
-    let actions: [(&str, &str, fn(&AppConfig) -> String, fn(&mut AppConfig, String)); 8] = [
+    let actions: [(&str, &str, fn(&AppConfig) -> String, fn(&mut AppConfig, String)); 10] = [
         ("New Workspace", "Create and switch to a fresh workspace", |c| c.shortcuts.new_workspace.clone(), |c, s| c.shortcuts.new_workspace = s),
         ("Close Focused Pane", "Close active terminal pane", |c| c.shortcuts.close_pane.clone(), |c, s| c.shortcuts.close_pane = s),
         ("Split Right", "Split current pane side-by-side", |c| c.shortcuts.split_right.clone(), |c, s| c.shortcuts.split_right = s),
         ("Split Down", "Split current pane top-and-bottom", |c| c.shortcuts.split_down.clone(), |c, s| c.shortcuts.split_down = s),
+        ("Focus Next Pane", "Move focus to the next terminal pane", |c| c.shortcuts.focus_next_pane.clone(), |c, s| c.shortcuts.focus_next_pane = s),
+        ("Focus Previous Pane", "Move focus to the previous terminal pane", |c| c.shortcuts.focus_prev_pane.clone(), |c, s| c.shortcuts.focus_prev_pane = s),
         ("Toggle Sidebar", "Show or hide the workspaces sidebar", |c| c.shortcuts.toggle_sidebar.clone(), |c, s| c.shortcuts.toggle_sidebar = s),
         ("Zoom In", "Increase terminal font size", |c| c.shortcuts.zoom_in.clone(), |c, s| c.shortcuts.zoom_in = s),
         ("Zoom Out", "Decrease terminal font size", |c| c.shortcuts.zoom_out.clone(), |c, s| c.shortcuts.zoom_out = s),
