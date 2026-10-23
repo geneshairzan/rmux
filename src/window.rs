@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crate::config::{matches_key, AppConfig};
 use crate::model::Tab;
+use crate::session::{SavedTab, SessionStore};
 use crate::sidebar::VerticalSidebar;
 use crate::sidebar::SIDEBAR_MAX_WIDTH;
 use crate::split::TabView;
@@ -530,12 +531,22 @@ impl MainWindow {
         // closes instead of hiding again.
         let confirmed_quit = Rc::new(Cell::new(false));
 
+        // Slot filled once the session saver exists (below): close (X)
+        // hides straight to the top-bar indicator, but we persist first
+        // so a crash/kill still recovers next launch.
+        let close_save_slot: Rc<RefCell<Option<Rc<dyn Fn()>>>> =
+            Rc::new(RefCell::new(None));
+
         // Close (X) hides straight to the top-bar indicator. No prompt:
         // terminals keep running, quit happens from the indicator menu.
         {
             let win_ref = window.clone();
             let quit_flag = confirmed_quit.clone();
+            let save_slot = close_save_slot.clone();
             window.connect_close_request(move |_| {
+                if let Some(save) = save_slot.borrow().clone() {
+                    save();
+                }
                 if quit_flag.get() {
                     return glib::Propagation::Proceed;
                 }
@@ -544,20 +555,111 @@ impl MainWindow {
             });
         }
 
-        let initial_tab = Tab::default();
-        let initial_id = initial_tab.id.clone();
+        // Session restore: rebuild workspace count/titles/order from
+        // session.json; per-tab split trees are built lazily in
+        // switch_tab via TabView::from_layout. Corrupt/missing/empty
+        // falls back to a single default workspace, never crashes.
+        let (initial_tabs, initial_id, pending_layouts) = {
+            let restored = SessionStore::load().filter(|s| !s.tabs.is_empty());
+            match restored {
+                Some(sess) => {
+                    let tabs: Vec<Tab> = sess
+                        .tabs
+                        .iter()
+                        .map(|t| Tab {
+                            id: t.id.clone(),
+                            title: t.title.clone(),
+                            root_layout: crate::model::LayoutNode::default(),
+                        })
+                        .collect();
+                    let layouts: HashMap<String, crate::model::LayoutNode> = sess
+                        .tabs
+                        .into_iter()
+                        .map(|t| (t.id, t.root_layout))
+                        .collect();
+                    let active = if tabs.iter().any(|t| t.id == sess.active_tab_id) {
+                        sess.active_tab_id
+                    } else {
+                        tabs[0].id.clone()
+                    };
+                    (tabs, active, layouts)
+                }
+                None => {
+                    let t = Tab::default();
+                    let id = t.id.clone();
+                    (vec![t], id, HashMap::new())
+                }
+            }
+        };
 
         let state = Rc::new(RefCell::new(State {
-            tabs: vec![initial_tab],
+            tabs: initial_tabs,
             active_tab_id: initial_id.clone(),
             tab_views: HashMap::new(),
             config: config.clone(),
         }));
 
+        let pending_layouts = Rc::new(RefCell::new(pending_layouts));
+
+        // Immediate save: snapshot live TabViews (or pending layouts for
+        // never-visited tabs) and persist atomically.
+        let save_now: Rc<dyn Fn()> = {
+            let state = state.clone();
+            let pending = pending_layouts.clone();
+            Rc::new(move || {
+                let (tabs_data, active) = {
+                    let st = state.borrow();
+                    let pend = pending.borrow();
+                    let mut v = Vec::with_capacity(st.tabs.len());
+                    for t in &st.tabs {
+                        let layout = if let Some(tv) = st.tab_views.get(&t.id) {
+                            tv.snapshot_layout()
+                        } else if let Some(l) = pend.get(&t.id) {
+                            l.clone()
+                        } else {
+                            t.root_layout.clone()
+                        };
+                        v.push(SavedTab {
+                            id: t.id.clone(),
+                            title: t.title.clone(),
+                            root_layout: layout,
+                        });
+                    }
+                    (v, st.active_tab_id.clone())
+                };
+                SessionStore::save(&tabs_data, &active);
+            })
+        };
+
+        // Debounced (~500 ms) save for high-frequency triggers
+        // (typing-adjacent drag-resize, rapid splits).
+        let save_debounce_gen = Rc::new(Cell::new(0u64));
+        let save_session_soon: Rc<dyn Fn()> = {
+            let save_now = save_now.clone();
+            let gen = save_debounce_gen.clone();
+            Rc::new(move || {
+                let cur = gen.get().wrapping_add(1);
+                gen.set(cur);
+                let save_now = save_now.clone();
+                let gen = gen.clone();
+                glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
+                    if gen.get() == cur {
+                        save_now();
+                    }
+                    glib::ControlFlow::Break
+                });
+            })
+        };
+
+        // Fill the close-request save slot now that the saver exists.
+        *close_save_slot.borrow_mut() = Some(save_now.clone());
+
         // Functions for manipulating tabs
         let switch_tab = {
             let state = state.clone();
             let tab_stack = tab_stack.clone();
+            let pending = pending_layouts.clone();
+            let save_soon = save_session_soon.clone();
 
             Rc::new(move |tab_id: &str| {
                 let config_term = {
@@ -567,10 +669,18 @@ impl MainWindow {
                     let config_term = st.config.terminal.clone();
 
                     if !st.tab_views.contains_key(tab_id) {
-                        let dir = std::env::current_dir()
-                            .map(|p| p.to_string_lossy().to_string())
-                            .unwrap_or_else(|_| String::from("/"));
-                        let tv = TabView::new(&config_term, dir);
+                        let saved_layout = pending.borrow_mut().remove(tab_id);
+                        let tv = match saved_layout {
+                            Some(layout) => TabView::from_layout(&config_term, &layout),
+                            None => {
+                                let dir = std::env::current_dir()
+                                    .map(|p| p.to_string_lossy().to_string())
+                                    .unwrap_or_else(|_| String::from("/"));
+                                TabView::new(&config_term, dir)
+                            }
+                        };
+                        let hook = save_soon.clone();
+                        tv.set_on_change(Rc::new(move || hook()));
                         tab_stack.add_named(&tv.container, Some(tab_id));
                         st.tab_views.insert(tab_id.to_string(), tv);
                     }
@@ -579,6 +689,8 @@ impl MainWindow {
 
                 let _ = config_term;
                 tab_stack.set_visible_child_name(tab_id);
+                // Persist active workspace change (debounced).
+                save_soon();
             })
         };
 
@@ -594,6 +706,7 @@ impl MainWindow {
             let switch_tab = switch_tab.clone();
             let close_tab_holder = close_tab_holder.clone();
             let rename_tab_holder = rename_tab_holder.clone();
+            let pending = pending_layouts.clone();
 
             Rc::new(move |tab_id: &str| {
                 let mut next_id_opt = None;
@@ -615,6 +728,7 @@ impl MainWindow {
                         if let Some(tv) = st.tab_views.remove(tab_id) {
                             tab_stack.remove(&tv.container);
                         }
+                        pending.borrow_mut().remove(tab_id);
 
                         tabs_snapshot = st.tabs.clone();
                         next_id_opt = Some(next_id);
@@ -698,6 +812,7 @@ impl MainWindow {
             let sidebar_cell = sidebar_cell.clone();
             let close_tab_holder = close_tab_holder.clone();
             let rename_tab_holder = rename_tab_holder.clone();
+            let save_soon = save_session_soon.clone();
 
             Rc::new(move |target_tab_id: &str| {
                 let current_title = {
@@ -750,6 +865,7 @@ impl MainWindow {
                 let ct_h = close_tab_holder.clone();
                 let rn_h = rename_tab_holder.clone();
                 let d_save = dialog.clone();
+                let save_soon_rename = save_soon.clone();
 
                 let do_rename = move |new_name: String| {
                     let trimmed = new_name.trim();
@@ -783,6 +899,7 @@ impl MainWindow {
                         );
                     }
                     d_save.close();
+                    save_soon_rename();
                 };
 
                 let do_r_clone = do_rename.clone();
@@ -806,6 +923,7 @@ impl MainWindow {
 
         let split_tab = {
             let state = state.clone();
+            let save_soon = save_session_soon.clone();
             Rc::new(move |orientation: &str| {
                 let tv_opt = {
                     let st = state.borrow();
@@ -819,6 +937,9 @@ impl MainWindow {
                         .or_else(|| tv.panes.borrow().keys().next().cloned());
                     if let Some(focused) = target {
                         tv.split_pane(&focused, orientation);
+                        // TabView's on_change hook also fires via
+                        // focus/position-notify; belt and suspenders.
+                        save_soon();
                     }
                 }
             })
@@ -828,6 +949,7 @@ impl MainWindow {
         let close_pane_action = {
             let state = state.clone();
             let close_tab = close_tab.clone();
+            let save_soon = save_session_soon.clone();
             Rc::new(move || {
                 let (active_id, tv_opt) = {
                     let st = state.borrow();
@@ -842,6 +964,7 @@ impl MainWindow {
                             .or_else(|| tv.panes.borrow().keys().next().cloned());
                         if let Some(t) = target {
                             tv.close_pane(&t);
+                            save_soon();
                             return;
                         }
                     }
@@ -928,6 +1051,7 @@ impl MainWindow {
             let add_tray = add_tab.clone();
             let settings_tray = open_settings.clone();
             let quit_tray = confirmed_quit.clone();
+            let quit_save = save_now.clone();
             glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
                 let rx = tray_rx.borrow();
                 while let Ok(action) = rx.try_recv() {
@@ -947,6 +1071,7 @@ impl MainWindow {
                             settings_tray();
                         }
                         TrayAction::Quit => {
+                            quit_save();
                             quit_tray.set(true);
                             win_tray.close();
                         }

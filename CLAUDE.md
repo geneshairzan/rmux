@@ -17,6 +17,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Single binary target: `rmux`, entry `src/main.rs` (`Cargo.toml` sets `default-run = "rmux"`).
 - GUI app. Tests run headless (`config`, `model` logic). Building needs GTK4/libadwaita/VTE headers and a display for `cargo run`.
 
+## Release (standing authorization)
+
+- "Go release" runs the full flow with no further confirmation: commit, tag, push commit plus tag, build the `.deb` via `packaging/deb/build-deb.sh`, create the GitHub release on `github.com/geneshairzan/rmux` with the `.deb` attached.
+- Bump `Cargo.toml` first when the tag already exists remotely. Never move a published tag.
+
 ## Architecture
 
 Single Rust binary. `MainWindow` (`src/window.rs`) owns the sidebar and one `TabView` per workspace.

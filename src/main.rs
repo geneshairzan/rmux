@@ -5,6 +5,7 @@ mod config;
 mod model;
 mod pane;
 mod settings;
+mod session;
 mod sidebar;
 mod split;
 mod theme;
