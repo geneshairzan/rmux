@@ -18,6 +18,25 @@ pub struct TerminalWidget {
     pub child_pid: Option<i32>,
 }
 
+/// Resolve the live cwd of a child pid, falling back gracefully.
+///
+/// Pure helper extracted so it can be unit-tested headless (GTK-free).
+/// Never panics: any failure (exited process, permission error,
+/// non-directory target) returns `fallback`.
+pub fn resolve_live_dir(pid_opt: Option<i32>, fallback: &str) -> String {
+    if let Some(pid) = pid_opt {
+        if pid > 0 {
+            let link = format!("/proc/{}/cwd", pid);
+            if let Ok(path) = std::fs::read_link(&link) {
+                if path.exists() && path.is_dir() {
+                    return path.to_string_lossy().to_string();
+                }
+            }
+        }
+    }
+    fallback.to_string()
+}
+
 #[allow(dead_code)]
 impl TerminalWidget {
     pub fn new(config: &TerminalConfig, working_dir: String, command: Option<String>) -> Self {
@@ -46,6 +65,13 @@ impl TerminalWidget {
 
     pub fn widget(&self) -> &gtk4::Widget {
         &self.widget
+    }
+
+    /// Live cwd of the shell in this pane: `/proc/<child_pid>/cwd`
+    /// when available, else the spawn-time `working_directory`.
+    /// Never panics and never blocks the UI (single `read_link`).
+    pub fn current_directory(&self) -> String {
+        resolve_live_dir(self.child_pid, &self.working_directory)
     }
 
     pub fn raw(&self) -> *mut VteTerminal {
@@ -201,5 +227,31 @@ impl TerminalWidget {
                 &mut self.child_pid as *mut _ as glib::ffi::gpointer,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_live_dir;
+
+    #[test]
+    fn none_pid_returns_fallback() {
+        assert_eq!(resolve_live_dir(None, "/home/user"), "/home/user");
+    }
+
+    #[test]
+    fn invalid_pid_returns_fallback() {
+        assert_eq!(resolve_live_dir(Some(0), "/fallback"), "/fallback");
+        assert_eq!(resolve_live_dir(Some(-5), "/fallback"), "/fallback");
+        // Non-existent pid: read_link fails -> fallback.
+        assert_eq!(resolve_live_dir(Some(i32::MAX), "/fallback"), "/fallback");
+    }
+
+    #[test]
+    fn own_process_pid_returns_live_dir() {
+        let pid = std::process::id() as i32;
+        let got = resolve_live_dir(Some(pid), "/fallback");
+        let path = std::path::Path::new(&got);
+        assert!(path.exists() && path.is_dir(), "got: {}", got);
     }
 }

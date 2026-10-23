@@ -117,7 +117,7 @@ impl TabView {
             let panes = self.panes.borrow();
             panes
                 .get(target_id)
-                .map(|p| p.term.borrow().working_directory.clone())
+                .map(|p| p.term.borrow().current_directory())
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_default().to_string_lossy().to_string())
         };
 
@@ -349,7 +349,7 @@ impl TabView {
             match found {
                 Some(pane) => Some(LayoutNode::Leaf {
                     pane_id: pane.id.clone(),
-                    working_directory: pane.term.borrow().working_directory.clone(),
+                    working_directory: pane.term.borrow().current_directory(),
                     command: None,
                 }),
                 None => {
