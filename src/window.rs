@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use crate::config::{matches_key, AppConfig};
 use crate::model::Tab;
-use crate::session::{SavedTab, SessionStore};
+use crate::session::{resolve_working_dir, SavedTab, SessionStore};
 use crate::sidebar::VerticalSidebar;
 use crate::sidebar::SIDEBAR_MAX_WIDTH;
 use crate::split::TabView;
@@ -664,6 +664,10 @@ impl MainWindow {
             Rc::new(move |tab_id: &str| {
                 let config_term = {
                     let mut st = state.borrow_mut();
+                    // Remember where we came from before retargeting:
+                    // a brand-new workspace starts in the previously
+                    // focused pane's live cwd (falls back to process cwd).
+                    let prev_active = st.active_tab_id.clone();
                     st.active_tab_id = tab_id.to_string();
 
                     let config_term = st.config.terminal.clone();
@@ -673,10 +677,29 @@ impl MainWindow {
                         let tv = match saved_layout {
                             Some(layout) => TabView::from_layout(&config_term, &layout),
                             None => {
-                                let dir = std::env::current_dir()
-                                    .map(|p| p.to_string_lossy().to_string())
-                                    .unwrap_or_else(|_| String::from("/"));
-                                TabView::new(&config_term, dir)
+                                let dir = st
+                                    .tab_views
+                                    .get(&prev_active)
+                                    .and_then(|tv| {
+                                        let fid = tv
+                                            .focused_pane_id
+                                            .borrow()
+                                            .clone()
+                                            .or_else(|| {
+                                                tv.panes.borrow().keys().next().cloned()
+                                            })?;
+                                        tv.panes
+                                            .borrow()
+                                            .get(&fid)
+                                            .map(|p| p.term.borrow().current_directory())
+                                    })
+                                    .filter(|d| !d.is_empty())
+                                    .unwrap_or_else(|| {
+                                        std::env::current_dir()
+                                            .map(|p| p.to_string_lossy().to_string())
+                                            .unwrap_or_else(|_| String::from("/"))
+                                    });
+                                TabView::new(&config_term, resolve_working_dir(&dir))
                             }
                         };
                         let hook = save_soon.clone();

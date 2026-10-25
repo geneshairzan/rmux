@@ -2,8 +2,10 @@
 
 use glib::translate::{from_glib_none, ToGlibPtr};
 use gtk4::prelude::*;
+use std::cell::Cell;
 use std::ffi::{CStr, CString};
 use std::ptr;
+use std::rc::Rc;
 use vte_sys::VteTerminal;
 
 use crate::config::TerminalConfig;
@@ -15,7 +17,11 @@ pub struct TerminalWidget {
     config: TerminalConfig,
     current_font_size: u32,
     pub working_directory: String,
-    pub child_pid: Option<i32>,
+    /// Heap-allocated pid slot shared with the async spawn callback.
+    /// Must be heap-stable: the callback fires after `new()` returns
+    /// (and `Self` has been moved), so a pointer to a struct field
+    /// would dangle. `Rc::into_raw` / `from_raw` pairs the ownership.
+    pub child_pid: Rc<Cell<Option<i32>>>,
 }
 
 /// Resolve the live cwd of a child pid, falling back gracefully.
@@ -52,7 +58,7 @@ impl TerminalWidget {
             config: config.clone(),
             current_font_size: config.font_size,
             working_directory: working_dir,
-            child_pid: None,
+            child_pid: Rc::new(Cell::new(None)),
         };
 
         term.apply_colors();
@@ -71,7 +77,7 @@ impl TerminalWidget {
     /// when available, else the spawn-time `working_directory`.
     /// Never panics and never blocks the UI (single `read_link`).
     pub fn current_directory(&self) -> String {
-        resolve_live_dir(self.child_pid, &self.working_directory)
+        resolve_live_dir(self.child_pid.get(), &self.working_directory)
     }
 
     pub fn raw(&self) -> *mut VteTerminal {
@@ -198,17 +204,27 @@ impl TerminalWidget {
             argv_c.iter().map(|s| s.as_ptr() as *mut _).collect();
         argv_ptrs.push(ptr::null_mut());
 
+        // The callback fires on the GTK main loop after `new()` has
+        // returned and `Self` has been moved into its `Rc`, so the pid
+        // slot must live on the heap. `into_raw` adds one ref that the
+        // callback reclaims with `from_raw` (it fires exactly once).
         unsafe extern "C" fn on_spawn_cb(
             _terminal: *mut VteTerminal,
             pid: glib::ffi::GPid,
             _error: *mut glib::ffi::GError,
             user_data: glib::ffi::gpointer,
         ) {
-            if !user_data.is_null() {
-                let pid_ptr = user_data as *mut Option<i32>;
-                *pid_ptr = Some(pid);
+            if user_data.is_null() {
+                return;
             }
+            let cell = user_data as *const Cell<Option<i32>>;
+            if pid > 0 {
+                (*cell).set(Some(pid));
+            }
+            let _ = Rc::from_raw(cell);
         }
+
+        let pid_sink = Rc::into_raw(self.child_pid.clone()) as glib::ffi::gpointer;
 
         unsafe {
             vte_sys::vte_terminal_spawn_async(
@@ -224,7 +240,7 @@ impl TerminalWidget {
                 -1,
                 ptr::null_mut(),
                 Some(on_spawn_cb),
-                &mut self.child_pid as *mut _ as glib::ffi::gpointer,
+                pid_sink,
             );
         }
     }
@@ -253,5 +269,50 @@ mod tests {
         let got = resolve_live_dir(Some(pid), "/fallback");
         let path = std::path::Path::new(&got);
         assert!(path.exists() && path.is_dir(), "got: {}", got);
+    }
+
+    /// Regression test: the async spawn callback must record the child
+    /// pid so `current_directory()` tracks `cd` (previously the callback
+    /// wrote to a moved stack address, pid stayed `None`, and splits
+    /// always reopened in the spawn-time dir). Needs a display; run
+    /// under `xvfb-run` headless.
+    #[test]
+    fn spawn_captures_pid_and_tracks_live_cwd() {
+        let _ = gtk4::init();
+        if gtk4::gdk::Display::default().is_none() {
+            eprintln!("SKIP: no display available");
+            return;
+        }
+        let mut cfg = super::super::config::TerminalConfig::default();
+        cfg.default_shell = String::from("/bin/bash");
+        // `cd /` first: live cwd must differ from the spawn dir (/tmp).
+        let term =
+            super::TerminalWidget::new(&cfg, String::from("/tmp"), Some(String::from("cd / && sleep 10")));
+        let ctx = glib::MainContext::default();
+        for _ in 0..500 {
+            if term.child_pid.get().is_some() {
+                break;
+            }
+            ctx.iteration(false);
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let pid = term
+            .child_pid
+            .get()
+            .expect("spawn callback must record child pid");
+        assert!(pid > 0, "pid: {pid}");
+        let mut live = String::new();
+        for _ in 0..200 {
+            ctx.iteration(false);
+            live = term.current_directory();
+            if live == "/" {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        assert_eq!(live, "/", "shell did cd / but live cwd is {live}");
+        let _ = std::process::Command::new("kill")
+            .arg(pid.to_string())
+            .output();
     }
 }
