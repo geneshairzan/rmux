@@ -170,6 +170,13 @@ impl TerminalWidget {
         }
     }
 
+    /// Write raw bytes to the child process, as if typed.
+    pub fn feed_child(&self, bytes: &[u8]) {
+        unsafe {
+            vte_sys::vte_terminal_feed_child(self.raw, bytes.as_ptr(), bytes.len() as isize);
+        }
+    }
+
     pub fn window_title(&self) -> Option<String> {
         unsafe {
             let ptr = vte_sys::vte_terminal_get_window_title(self.raw);

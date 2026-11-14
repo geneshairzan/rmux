@@ -11,6 +11,16 @@ pub struct TerminalConfig {
     pub scrollback_lines: i64,
     pub default_shell: String,
     pub theme: String,
+    /// Shift+Enter sends ESC+CR, so TUIs such as Claude Code insert a new line (macOS-style).
+    #[serde(default = "default_true")]
+    pub shift_enter_newline: bool,
+    /// Ctrl+V pastes from the clipboard (macOS Cmd+V habit) instead of sending literal-next (^V).
+    #[serde(default = "default_true")]
+    pub ctrl_v_paste: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for TerminalConfig {
@@ -21,6 +31,8 @@ impl Default for TerminalConfig {
             scrollback_lines: 10000,
             default_shell: std::env::var("SHELL").unwrap_or_else(|_| String::from("/bin/bash")),
             theme: String::from("rmux Dark"),
+            shift_enter_newline: true,
+            ctrl_v_paste: true,
         }
     }
 }
@@ -223,6 +235,35 @@ mod tests {
         let recovered: AppConfig = serde_json::from_str(json).unwrap();
         assert_eq!(recovered.shortcuts.focus_next_pane, "Ctrl+Tab");
         assert_eq!(recovered.shortcuts.focus_prev_pane, "Ctrl+Shift+Tab");
+    }
+
+    #[test]
+    fn test_mac_style_keys_default_on() {
+        let config = AppConfig::default();
+        assert!(config.terminal.shift_enter_newline);
+        assert!(config.terminal.ctrl_v_paste);
+    }
+
+    #[test]
+    fn test_old_config_without_mac_style_keys_defaults_on() {
+        let json = r#"{
+            "terminal": {"font_family": "Monospace", "font_size": 11, "scrollback_lines": 10000, "default_shell": "/bin/bash", "theme": "rmux Dark"},
+            "appearance": {"theme": "rmux Dark", "sidebar_visible": true, "sidebar_width": 240}
+        }"#;
+        let recovered: AppConfig = serde_json::from_str(json).unwrap();
+        assert!(recovered.terminal.shift_enter_newline);
+        assert!(recovered.terminal.ctrl_v_paste);
+    }
+
+    #[test]
+    fn test_mac_style_keys_can_be_disabled() {
+        let mut config = AppConfig::default();
+        config.terminal.shift_enter_newline = false;
+        config.terminal.ctrl_v_paste = false;
+        let json = serde_json::to_string(&config).unwrap();
+        let recovered: AppConfig = serde_json::from_str(&json).unwrap();
+        assert!(!recovered.terminal.shift_enter_newline);
+        assert!(!recovered.terminal.ctrl_v_paste);
     }
 
     #[test]

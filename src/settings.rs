@@ -584,6 +584,74 @@ pub fn show_settings_modal(
     term_card.append(&shell_box);
 
     page_terminal.append(&term_card);
+
+    // Keyboard card: macOS-style key behaviour, on by default.
+    let kb_title = gtk4::Label::new(Some("Keyboard"));
+    kb_title.add_css_class("antigravity-row-title");
+    kb_title.set_halign(gtk4::Align::Start);
+    kb_title.set_margin_top(8);
+    page_terminal.append(&kb_title);
+
+    let kb_card = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+    kb_card.add_css_class("antigravity-card");
+
+    type ToggleSetter = fn(&mut AppConfig, bool);
+    let toggles: [(&str, &str, bool, ToggleSetter); 2] = [
+        (
+            "Shift+Enter inserts new line",
+            "Sends Escape+Return, like Alt+Enter. Claude Code and other TUIs add a line instead of submitting.",
+            config_state.borrow().terminal.shift_enter_newline,
+            |cfg, on| cfg.terminal.shift_enter_newline = on,
+        ),
+        (
+            "Ctrl+V pastes",
+            "Paste like Cmd+V on macOS. Turn off to send a literal Ctrl+V (Vim block select, image paste in TUIs).",
+            config_state.borrow().terminal.ctrl_v_paste,
+            |cfg, on| cfg.terminal.ctrl_v_paste = on,
+        ),
+    ];
+
+    for (i, (title, desc, active, setter)) in toggles.into_iter().enumerate() {
+        if i > 0 {
+            let sep = gtk4::Separator::new(gtk4::Orientation::Horizontal);
+            sep.add_css_class("antigravity-card-sep");
+            kb_card.append(&sep);
+        }
+        let row = gtk4::Box::new(gtk4::Orientation::Horizontal, 12);
+        row.add_css_class("antigravity-card-row");
+        row.set_margin_start(16);
+        row.set_margin_end(16);
+        row.set_margin_top(12);
+        row.set_margin_bottom(12);
+
+        let text = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
+        text.set_hexpand(true);
+        let lbl = gtk4::Label::new(Some(title));
+        lbl.add_css_class("antigravity-row-title");
+        lbl.set_halign(gtk4::Align::Start);
+        text.append(&lbl);
+        let sub = gtk4::Label::new(Some(desc));
+        sub.add_css_class("antigravity-row-desc");
+        sub.set_halign(gtk4::Align::Start);
+        sub.set_wrap(true);
+        sub.set_xalign(0.0);
+        text.append(&sub);
+        row.append(&text);
+
+        let switch = gtk4::Switch::new();
+        switch.set_active(active);
+        switch.set_valign(gtk4::Align::Center);
+        let cfg_toggle = config_state.clone();
+        switch.connect_active_notify(move |sw| {
+            let mut cfg = cfg_toggle.borrow_mut();
+            setter(&mut cfg, sw.is_active());
+            cfg.save();
+        });
+        row.append(&switch);
+        kb_card.append(&row);
+    }
+    page_terminal.append(&kb_card);
+
     stack.add_named(&page_terminal, Some("terminal"));
 
     // ----------------------------------------------------

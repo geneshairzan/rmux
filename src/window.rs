@@ -1035,6 +1035,7 @@ impl MainWindow {
                 scrim.set_vexpand(true);
                 overlay_ref.add_overlay(&scrim);
 
+                let cfg_sync = cfg_cell.clone();
                 let dialog = crate::settings::show_settings_modal(
                     &win_ref,
                     cfg_cell,
@@ -1042,7 +1043,11 @@ impl MainWindow {
                     on_font_cb,
                 );
                 let overlay_rm = overlay_ref.clone();
+                let state_sync = state_ref.clone();
                 dialog.connect_close_request(move |_| {
+                    // Settings edits a copy; push it back so toggles and
+                    // shortcuts apply live without a restart.
+                    state_sync.borrow_mut().config = cfg_sync.borrow().clone();
                     overlay_rm.remove_overlay(&scrim);
                     glib::Propagation::Proceed
                 });
@@ -1123,7 +1128,7 @@ impl MainWindow {
         let state_key = state.clone();
         let focus_cycle_key = state.clone();
 
-        key_ctrl.connect_key_pressed(move |_, keyval, _, state_flags| {
+        key_ctrl.connect_key_pressed(move |ctrl, keyval, _, state_flags| {
             let shortcuts = state_key.borrow().config.shortcuts.clone();
 
             // Configurable action: New Workspace (default: Ctrl+Shift+N)
@@ -1204,6 +1209,47 @@ impl MainWindow {
                     }
                 }
                 return glib::Propagation::Stop;
+            }
+
+            // macOS-style terminal keys (Settings > Terminal & Shell > Keyboard).
+            // Only when a terminal has focus, so text fields keep native Ctrl+V.
+            {
+                let mods = state_flags
+                    & (gtk4::gdk::ModifierType::CONTROL_MASK
+                        | gtk4::gdk::ModifierType::SHIFT_MASK
+                        | gtk4::gdk::ModifierType::ALT_MASK
+                        | gtk4::gdk::ModifierType::SUPER_MASK);
+                let is_shift_enter = mods == gtk4::gdk::ModifierType::SHIFT_MASK
+                    && (keyval == gtk4::gdk::Key::Return || keyval == gtk4::gdk::Key::KP_Enter);
+                let is_ctrl_v = mods == gtk4::gdk::ModifierType::CONTROL_MASK
+                    && keyval.to_lower() == gtk4::gdk::Key::v;
+
+                if is_shift_enter || is_ctrl_v {
+                    let term_cfg = state_key.borrow().config.terminal.clone();
+                    let enabled = (is_shift_enter && term_cfg.shift_enter_newline)
+                        || (is_ctrl_v && term_cfg.ctrl_v_paste);
+                    let focused = ctrl
+                        .widget()
+                        .and_then(|w| w.root())
+                        .and_then(|r| r.focus());
+                    if let (true, Some(focused)) = (enabled, focused) {
+                        let st = state_key.borrow();
+                        if let Some(tv) = st.tab_views.get(&st.active_tab_id) {
+                            for pane in tv.panes.borrow().values() {
+                                let term = pane.term.borrow();
+                                if term.widget() == &focused {
+                                    if is_shift_enter {
+                                        // ESC+CR: what Alt+Enter sends; TUIs read it as "new line".
+                                        term.feed_child(b"\x1b\r");
+                                    } else {
+                                        term.paste();
+                                    }
+                                    return glib::Propagation::Stop;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Direct fallbacks for standard developer shortcuts
